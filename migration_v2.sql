@@ -61,3 +61,34 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.suppliers;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.supplier_transactions;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_transactions;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_closings;
+
+-- 5. Cascade Delete Setup: Automatically clear all data when a shop is deleted
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_shop_id_fkey;
+ALTER TABLE public.users ADD CONSTRAINT users_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_shop_id_fkey;
+ALTER TABLE public.products ADD CONSTRAINT products_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS customers_shop_id_fkey;
+ALTER TABLE public.customers ADD CONSTRAINT customers_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.sales DROP CONSTRAINT IF EXISTS sales_shop_id_fkey;
+ALTER TABLE public.sales ADD CONSTRAINT sales_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.expenses DROP CONSTRAINT IF EXISTS expenses_shop_id_fkey;
+ALTER TABLE public.expenses ADD CONSTRAINT expenses_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.suppliers DROP CONSTRAINT IF EXISTS suppliers_shop_id_fkey;
+ALTER TABLE public.suppliers ADD CONSTRAINT suppliers_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.supplier_transactions DROP CONSTRAINT IF EXISTS supplier_transactions_shop_id_fkey;
+ALTER TABLE public.supplier_transactions ADD CONSTRAINT supplier_transactions_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.customer_transactions DROP CONSTRAINT IF EXISTS customer_transactions_shop_id_fkey;
+ALTER TABLE public.customer_transactions ADD CONSTRAINT customer_transactions_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.daily_closings DROP CONSTRAINT IF EXISTS daily_closings_shop_id_fkey;
+ALTER TABLE public.daily_closings ADD CONSTRAINT daily_closings_shop_id_fkey FOREIGN KEY (shop_id) REFERENCES public.shops(id) ON DELETE CASCADE;
+
+ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS sale_items_sale_id_fkey;
+ALTER TABLE public.sale_items ADD CONSTRAINT sale_items_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.sales(id) ON DELETE CASCADE;
