@@ -135,6 +135,68 @@ export const AppProvider = ({ children }) => {
     checkSession();
   }, [isOnline]);
 
+  const pullAllTablesFromCloud = async () => {
+    if (!isSupabaseConfigured || !navigator.onLine || !currentUser) return;
+    
+    try {
+      const isSystemAdmin = currentUser.role === 'Admin';
+      const myShopId = currentUser.shop_id;
+
+      // 1. Fetch Shops
+      let shopsQuery = supabase.from('shops').select('*');
+      if (!isSystemAdmin) {
+        if (myShopId) {
+          shopsQuery = shopsQuery.eq('id', myShopId);
+        } else {
+          shopsQuery = null;
+        }
+      }
+      if (shopsQuery) {
+        const { data: shopsData } = await shopsQuery;
+        if (shopsData) {
+          for (const s of shopsData) await dbOps.put(STORES.SHOPS, s);
+        }
+      }
+
+      // Helper to pull a table
+      const pullTable = async (tableName, storeName) => {
+        let query = supabase.from(tableName).select('*');
+        if (!isSystemAdmin && tableName !== 'shops') {
+          query = query.eq('shop_id', myShopId);
+        }
+        const { data, error } = await query;
+        if (error) {
+          console.error(`Error pulling ${tableName}:`, error);
+          return;
+        }
+        if (data) {
+          for (const row of data) {
+            const local = await dbOps.get(storeName, row.id);
+            if (!local || local.sync_status !== 'pending') {
+              await dbOps.put(storeName, row);
+            }
+          }
+        }
+      };
+
+      // Pull other tables
+      await pullTable('users', STORES.USERS);
+      await pullTable('products', STORES.PRODUCTS);
+      await pullTable('customers', STORES.CUSTOMERS);
+      await pullTable('sales', STORES.SALES);
+      await pullTable('sale_items', STORES.SALE_ITEMS);
+      await pullTable('expenses', STORES.EXPENSES);
+      await pullTable('suppliers', STORES.SUPPLIERS);
+      await pullTable('supplier_transactions', STORES.SUPPLIER_TRANSACTIONS);
+      await pullTable('customer_transactions', STORES.CUSTOMER_TRANSACTIONS);
+      await pullTable('daily_closings', STORES.DAILY_CLOSINGS);
+
+      await loadDataFromIndexedDB();
+    } catch (e) {
+      console.error('Failed to pull remote data:', e);
+    }
+  };
+
   // Read data from IndexedDB local stores into React state
   const loadDataFromIndexedDB = async () => {
     try {
@@ -164,6 +226,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (currentUser) {
       loadDataFromIndexedDB();
+      pullAllTablesFromCloud();
     } else {
       // Clear data state on logout
       setProducts([]);
@@ -176,6 +239,69 @@ export const AppProvider = ({ children }) => {
       setQuarantineQueue([]);
     }
   }, [currentUser]);
+
+  // Pull on network return
+  useEffect(() => {
+    if (isOnline && currentUser) {
+      pullAllTablesFromCloud();
+    }
+  }, [isOnline]);
+
+  // Setup Supabase Realtime Channels
+  useEffect(() => {
+    if (!isSupabaseConfigured || !currentUser || !navigator.onLine) return;
+
+    const myShopId = currentUser.shop_id;
+    const isSystemAdmin = currentUser.role === 'Admin';
+
+    const channel = supabase
+      .channel('db-realtime-channel')
+      .on('postgres_changes', { event: '*', schema: 'public' }, async (payload) => {
+        const { table, eventType, new: newRecord, old: oldRecord } = payload;
+        
+        let storeName = null;
+        switch (table) {
+          case 'shops': storeName = STORES.SHOPS; break;
+          case 'users': storeName = STORES.USERS; break;
+          case 'products': storeName = STORES.PRODUCTS; break;
+          case 'customers': storeName = STORES.CUSTOMERS; break;
+          case 'sales': storeName = STORES.SALES; break;
+          case 'sale_items': storeName = STORES.SALE_ITEMS; break;
+          case 'expenses': storeName = STORES.EXPENSES; break;
+          case 'suppliers': storeName = STORES.SUPPLIERS; break;
+          case 'supplier_transactions': storeName = STORES.SUPPLIER_TRANSACTIONS; break;
+          case 'customer_transactions': storeName = STORES.CUSTOMER_TRANSACTIONS; break;
+          case 'daily_closings': storeName = STORES.DAILY_CLOSINGS; break;
+          default: break;
+        }
+
+        if (!storeName) return;
+
+        if (!isSystemAdmin && table !== 'shops' && newRecord && newRecord.shop_id !== myShopId) {
+          return;
+        }
+        if (!isSystemAdmin && table === 'shops' && newRecord && newRecord.id !== myShopId) {
+          return;
+        }
+
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+          const localRecord = await dbOps.get(storeName, newRecord.id);
+          if (!localRecord || localRecord.sync_status !== 'pending') {
+            newRecord.sync_status = 'synced';
+            await dbOps.put(storeName, newRecord);
+            await loadDataFromIndexedDB();
+          }
+        } else if (eventType === 'DELETE') {
+          await dbOps.delete(storeName, oldRecord.id);
+          await loadDataFromIndexedDB();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser, isOnline]);
 
   // --- SYSTEM GUARDS ---
   const isSubscriptionActive = () => {
