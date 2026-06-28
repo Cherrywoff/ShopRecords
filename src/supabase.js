@@ -9,10 +9,22 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+// Normalize Supabase URL to prevent double rest/v1 paths if misconfigured on hosting panel
+let cleanSupabaseUrl = supabaseUrl.trim();
+if (cleanSupabaseUrl.endsWith('/')) {
+  cleanSupabaseUrl = cleanSupabaseUrl.slice(0, -1);
+}
+if (cleanSupabaseUrl.endsWith('/rest/v1')) {
+  cleanSupabaseUrl = cleanSupabaseUrl.slice(0, -8);
+}
+if (cleanSupabaseUrl.endsWith('/')) {
+  cleanSupabaseUrl = cleanSupabaseUrl.slice(0, -1);
+}
+
+export const isSupabaseConfigured = !!(cleanSupabaseUrl && supabaseAnonKey);
 
 export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey, {
+  ? createClient(cleanSupabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
