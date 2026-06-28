@@ -14,6 +14,7 @@ import Expenses from './components/Expenses';
 import Suppliers from './components/Suppliers';
 import DailyClosing from './components/DailyClosing';
 import Settings from './components/Settings';
+import Reports from './components/Reports';
 import AdminDashboard from './components/AdminDashboard';
 
 export default function App() {
@@ -124,6 +125,7 @@ export default function App() {
         {currentTab === 'suppliers' && <Suppliers />}
         {currentTab === 'closing' && <DailyClosing />}
         {currentTab === 'settings' && <Settings />}
+        {currentTab === 'reports' && <Reports />}
         {currentTab === 'admin' && <AdminDashboard />}
       </main>
 

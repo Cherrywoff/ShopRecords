@@ -82,6 +82,9 @@ export default function BottomNav({ currentTab, setCurrentTab }) {
                   <button onClick={() => handleTabClick('settings')} style={getGridItemStyle()}>
                     ⚙️ <span style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Settings</span>
                   </button>
+                  <button onClick={() => handleTabClick('reports')} style={getGridItemStyle()}>
+                    📈 <span style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Reports & Taxes</span>
+                  </button>
                 </>
               )}
 

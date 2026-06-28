@@ -35,6 +35,11 @@ export default function Sidebar({ currentTab, setCurrentTab }) {
       menuItems.push({ id: 'closing', label: 'Daily Closing', icon: '🏦' });
     }
 
+    // Reports (Owner and Manager)
+    if (role === 'Owner' || role === 'Manager') {
+      menuItems.push({ id: 'reports', label: 'Reports & Taxes', icon: '📈' });
+    }
+
     // Settings (Owner and Admin)
     if (role === 'Owner') {
       menuItems.push({ id: 'settings', label: 'Settings', icon: '⚙️' });

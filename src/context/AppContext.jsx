@@ -381,7 +381,7 @@ export const AppProvider = ({ children }) => {
     if (sale.payment_method === 'Udhar' && sale.customer_id) {
       const customer = await dbOps.get(STORES.CUSTOMERS, sale.customer_id);
       if (customer) {
-        customer.outstanding_balance = Math.max(0, parseFloat(customer.outstanding_balance) - sale.total_amount);
+        customer.outstanding_balance = parseFloat(customer.outstanding_balance) - sale.total_amount;
         await dbOps.put(STORES.CUSTOMERS, customer);
         await queueSyncAction(STORES.CUSTOMERS, customer.id, 'UPDATE');
 
@@ -464,7 +464,7 @@ export const AppProvider = ({ children }) => {
     const customer = await dbOps.get(STORES.CUSTOMERS, customerId);
     if (!customer) return;
 
-    customer.outstanding_balance = Math.max(0, parseFloat(customer.outstanding_balance) - parseFloat(amount));
+    customer.outstanding_balance = parseFloat(customer.outstanding_balance) - parseFloat(amount);
     await dbOps.put(STORES.CUSTOMERS, customer);
     await queueSyncAction(STORES.CUSTOMERS, customer.id, 'UPDATE');
 

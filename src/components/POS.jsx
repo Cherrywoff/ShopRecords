@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import BarcodeScanner from './BarcodeScanner';
+import { generateUUID } from '../db/db';
 
 export default function POS() {
   const { 
@@ -89,7 +90,9 @@ export default function POS() {
     e.preventDefault();
     if (!quickCreateName || !quickCreatePrice) return alert('Name and Price are required.');
 
+    const newId = generateUUID();
     const newProd = {
+      id: newId,
       name: quickCreateName,
       barcode: quickCreateBarcode || `QUICK-${Date.now()}`,
       cost_price: parseFloat(quickCreatePrice) * 0.7, // Assume 30% profit margin
@@ -430,54 +433,227 @@ export default function POS() {
 
       {/* 3. Thermal Receipt print profile (hidden from screen, displayed in print layout) */}
       {activeReceipt && (
-        <div className="print-receipt-section" style={{ display: 'none' }}>
-          <div style={{ textAlign: 'center', marginBottom: '4mm' }}>
-            <h3 style={{ margin: 0, fontSize: '14px' }}>{activeReceipt.customer_name === 'Walk-in Customer' ? 'ShopRecords Store' : 'Receipt'}</h3>
-            <p style={{ margin: 0 }}>Invoice: {activeReceipt.invoice_number}</p>
-            <p style={{ margin: 0 }}>Date: {new Date(activeReceipt.created_at).toLocaleString('en-IN')}</p>
+        <div className="print-receipt-section">
+          <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
+            <h3 style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentShop?.name || 'ShopRecords Store'}</h3>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Retail GST Invoice</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Invoice: {activeReceipt.invoice_number}</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Date: {new Date(activeReceipt.created_at).toLocaleString('en-IN')}</p>
           </div>
-          <hr style={{ borderStyle: 'dashed', borderColor: '#000', margin: '2mm 0' }} />
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          
+          <hr style={{ borderTop: '1px dashed #000', margin: '1mm 0' }} />
+          
+          <div style={{ fontSize: '9px', marginBottom: '2mm' }}>
+            <strong>Bill To:</strong> {activeReceipt.customer_name}<br />
+            {activeReceipt.customer_phone && <><strong>Phone:</strong> {activeReceipt.customer_phone}</>}
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
             <thead>
               <tr style={{ borderBottom: '1px dashed #000' }}>
-                <th style={{ textAlign: 'left' }}>Item</th>
-                <th style={{ textAlign: 'center' }}>Qty</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
+                <th style={{ textAlign: 'left', paddingBottom: '1px' }}>Description (HSN)</th>
+                <th style={{ textAlign: 'center', paddingBottom: '1px' }}>Qty</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>Rate</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>GST%</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>Total</th>
               </tr>
             </thead>
             <tbody>
-              {activeReceipt.items.map((item) => (
-                <tr key={item.product.id}>
-                  <td>{item.product.name}</td>
-                  <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                  <td style={{ textAlign: 'right' }}>₹{(item.customPrice * item.quantity).toFixed(2)}</td>
-                </tr>
-              ))}
+              {activeReceipt.items.map((item) => {
+                const qty = parseFloat(item.quantity);
+                const rate = parseFloat(item.customPrice);
+                const gstRate = parseFloat(item.product.gst_rate || 0);
+                const total = rate * qty;
+                return (
+                  <tr key={item.product.id} style={{ borderBottom: '0.5px dotted #ccc' }}>
+                    <td style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+                      {item.product.name} {item.product.hsn_code ? `(${item.product.hsn_code})` : ''}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{qty}</td>
+                    <td style={{ textAlign: 'right' }}>₹{rate.toFixed(2)}</td>
+                    <td style={{ textAlign: 'right' }}>{gstRate}%</td>
+                    <td style={{ textAlign: 'right' }}>₹{total.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          <hr style={{ borderStyle: 'dashed', borderColor: '#000', margin: '2mm 0' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-            <span>Subtotal:</span>
-            <span>₹{(activeReceipt.total_amount + activeReceipt.discount_amount).toFixed(2)}</span>
-          </div>
-          {activeReceipt.discount_amount > 0 && (
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+
+          <div style={{ fontSize: '9px', lineHeight: '1.4' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Discount:</span>
-              <span>-₹{activeReceipt.discount_amount.toFixed(2)}</span>
+              <span>Subtotal (Inclusive of GST):</span>
+              <span>₹{(activeReceipt.total_amount + activeReceipt.discount_amount).toFixed(2)}</span>
+            </div>
+            {activeReceipt.discount_amount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Discount:</span>
+                <span>-₹{activeReceipt.discount_amount.toFixed(2)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '10px', marginTop: '1px' }}>
+              <span>Net Payable ({activeReceipt.payment_method}):</span>
+              <span>₹{activeReceipt.total_amount.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+
+          {/* GST Breakdown Table */}
+          {activeReceipt.gst_amount > 0 && (
+            <div style={{ fontSize: '8px' }}>
+              <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '1px' }}>GST TAX BREAKDOWN</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                <thead>
+                  <tr style={{ borderBottom: '0.5px dashed #000' }}>
+                    <th style={{ textAlign: 'left' }}>GST%</th>
+                    <th>Taxable Val</th>
+                    <th>CGST</th>
+                    <th>SGST</th>
+                    <th>Total Tax</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    // Group taxes by rate
+                    const taxGroups = {};
+                    activeReceipt.items.forEach(item => {
+                      const rate = parseFloat(item.product.gst_rate || 0);
+                      if (rate > 0) {
+                        const totalItemPrice = item.customPrice * item.quantity;
+                        const basePrice = totalItemPrice / (1 + (rate / 100));
+                        const tax = totalItemPrice - basePrice;
+                        if (!taxGroups[rate]) {
+                          taxGroups[rate] = { taxable: 0, tax: 0 };
+                        }
+                        taxGroups[rate].taxable += basePrice;
+                        taxGroups[rate].tax += tax;
+                      }
+                    });
+
+                    return Object.entries(taxGroups).map(([rate, vals]) => {
+                      const cgst = vals.tax / 2;
+                      const sgst = vals.tax / 2;
+                      return (
+                        <tr key={rate}>
+                          <td style={{ textAlign: 'left' }}>{rate}%</td>
+                          <td>₹{vals.taxable.toFixed(2)}</td>
+                          <td>₹{cgst.toFixed(2)}</td>
+                          <td>₹{sgst.toFixed(2)}</td>
+                          <td>₹{vals.tax.toFixed(2)}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+              <div style={{ marginTop: '2px', textAlign: 'right', fontWeight: 'bold' }}>
+                Total Tax Included: ₹{activeReceipt.gst_amount.toFixed(2)}
+              </div>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '12px', marginTop: '1mm' }}>
-            <span>Net Total ({activeReceipt.payment_method}):</span>
-            <span>₹{activeReceipt.total_amount.toFixed(2)}</span>
-          </div>
-          <hr style={{ borderStyle: 'dashed', borderColor: '#000', margin: '2mm 0' }} />
-          <div style={{ textAlign: 'center', marginTop: '4mm', fontSize: '10px' }}>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+          <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '2mm' }}>
             <p style={{ margin: 0 }}>Thank You! Visit Again.</p>
-            <p style={{ margin: 0 }}>Powered by ShopRecords POS</p>
+            <p style={{ margin: 0, fontSize: '7px', color: '#666' }}>Powered by ShopRecords POS</p>
           </div>
-          <button className="btn btn-outline" onClick={() => setActiveReceipt(null)} style={{ display: 'block', margin: '10px auto 0 auto', width: '100%', minHeight: '36px' }}>
-            Done Printing
-          </button>
+        </div>
+      )}
+
+      {/* On-screen Receipt Dialog Modal */}
+      {activeReceipt && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}>Completed Invoice</h2>
+              <button 
+                className="btn btn-outline" 
+                onClick={() => setActiveReceipt(null)}
+                style={{ padding: '0.25rem 0.5rem', minHeight: 'auto' }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ textAlign: 'center', color: 'var(--primary)', fontSize: '1rem', fontWeight: 600 }}>
+                🎉 Sale Completed Successfully!
+              </div>
+
+              <div style={{ 
+                fontFamily: 'monospace', 
+                fontSize: '0.85rem', 
+                backgroundColor: 'var(--bg-tertiary)', 
+                borderRadius: 'var(--radius-sm)', 
+                padding: '1rem', 
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+                lineHeight: 1.4
+              }}>
+                <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
+                  <strong style={{ fontSize: '1rem' }}>{currentShop?.name || 'Store'}</strong>
+                  <div>Invoice: {activeReceipt.invoice_number}</div>
+                  <div>{new Date(activeReceipt.created_at).toLocaleString('en-IN')}</div>
+                </div>
+
+                <hr style={{ borderTop: '1px dashed var(--border-color)', margin: '0.5rem 0' }} />
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  {activeReceipt.items.map(item => (
+                    <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{item.product.name} x {item.quantity}</span>
+                      <span>₹{(item.customPrice * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <hr style={{ borderTop: '1px dashed var(--border-color)', margin: '0.5rem 0' }} />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Subtotal:</span>
+                  <span>₹{(activeReceipt.total_amount + activeReceipt.discount_amount).toFixed(2)}</span>
+                </div>
+                {activeReceipt.discount_amount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--accent-error)' }}>
+                    <span>Discount:</span>
+                    <span>-₹{activeReceipt.discount_amount.toFixed(2)}</span>
+                  </div>
+                )}
+                {activeReceipt.gst_amount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-tertiary)', fontSize: '0.8rem' }}>
+                    <span>Includes GST:</span>
+                    <span>₹{activeReceipt.gst_amount.toFixed(2)}</span>
+                  </div>
+                )}
+                
+                <hr style={{ borderTop: '1px dashed var(--border-color)', margin: '0.5rem 0' }} />
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                  <span>Net Payable ({activeReceipt.payment_method}):</span>
+                  <span>₹{activeReceipt.total_amount.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ gap: '0.75rem' }}>
+              <button 
+                className="btn btn-outline" 
+                onClick={() => window.print()}
+                style={{ flexGrow: 1 }}
+              >
+                🖨️ Print Bill
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => setActiveReceipt(null)}
+                style={{ flexGrow: 1 }}
+              >
+                🛒 New Sale
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
