@@ -160,22 +160,30 @@ export const AppProvider = ({ children }) => {
 
       // Helper to pull a table
       const pullTable = async (tableName, storeName) => {
-        let query = supabase.from(tableName).select('*');
-        if (!isSystemAdmin && tableName !== 'shops') {
-          query = query.eq('shop_id', myShopId);
-        }
-        const { data, error } = await query;
-        if (error) {
-          console.error(`Error pulling ${tableName}:`, error);
-          return;
-        }
-        if (data) {
-          for (const row of data) {
-            const local = await dbOps.get(storeName, row.id);
-            if (!local || local.sync_status !== 'pending') {
-              await dbOps.put(storeName, row);
+        try {
+          let query = supabase.from(tableName).select('*');
+          if (!isSystemAdmin && tableName !== 'shops') {
+            query = query.eq('shop_id', myShopId);
+          }
+          const { data, error } = await query;
+          if (error) {
+            console.error(`Error pulling ${tableName}:`, error);
+            return;
+          }
+          if (data) {
+            for (const row of data) {
+              try {
+                const local = await dbOps.get(storeName, row.id);
+                if (!local || local.sync_status !== 'pending') {
+                  await dbOps.put(storeName, row);
+                }
+              } catch (dbErr) {
+                console.error(`Database write error on table ${tableName}, id ${row.id}:`, dbErr);
+              }
             }
           }
+        } catch (pullErr) {
+          console.error(`Failed to pull table ${tableName}:`, pullErr);
         }
       };
 

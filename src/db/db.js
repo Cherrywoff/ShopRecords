@@ -3,7 +3,7 @@
 // ==========================================
 
 const DB_NAME = 'shoprecords_local_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const STORES = {
   SHOPS: 'shops',
