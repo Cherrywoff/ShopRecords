@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 
+// Helper to convert UTC timestamp to local Asia/Kolkata date string (YYYY-MM-DD)
+const getLocalDateString = (isoString) => {
+  if (!isoString) return '';
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  } catch (e) {
+    return isoString.slice(0, 10);
+  }
+};
+
 export default function DailyClosing() {
   const { sales, expenses, dailyClosings, saveDailyClosing, customers } = useApp();
   const [closingDate, setClosingDate] = useState(() => {
@@ -22,7 +33,7 @@ export default function DailyClosing() {
   const loadStatsForDate = async () => {
     try {
       // 1. Cash Sales (including Cash components of Split payments)
-      const daySales = sales.filter(s => s.created_at.startsWith(closingDate) && s.status === 'Completed');
+      const daySales = sales.filter(s => getLocalDateString(s.created_at) === closingDate && s.status === 'Completed');
       const sumSales = daySales.reduce((acc, curr) => {
         if (curr.payment_method === 'Cash') {
           return acc + parseFloat(curr.total_amount || 0);
@@ -42,13 +53,13 @@ export default function DailyClosing() {
       // 3. Udhar Payments received (Only Cash payments)
       const { dbOps, STORES } = await import('../db/db');
       const txs = await dbOps.getAll(STORES.CUSTOMER_TRANSACTIONS);
-      const dayPayments = txs.filter(t => t.created_at.startsWith(closingDate) && t.type === 'Payment' && (t.payment_method === 'Cash' || !t.payment_method));
+      const dayPayments = txs.filter(t => getLocalDateString(t.created_at) === closingDate && t.type === 'Payment' && (t.payment_method === 'Cash' || !t.payment_method));
       const sumPayments = dayPayments.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
       setUdharReceived(sumPayments);
 
       // 4. Supplier Payments disbursed in Cash
       const supplierTxs = await dbOps.getAll(STORES.SUPPLIER_TRANSACTIONS);
-      const daySupplierPayments = supplierTxs.filter(t => t.created_at.startsWith(closingDate) && t.type === 'Payment' && (t.payment_method === 'Cash' || !t.payment_method));
+      const daySupplierPayments = supplierTxs.filter(t => getLocalDateString(t.created_at) === closingDate && t.type === 'Payment' && (t.payment_method === 'Cash' || !t.payment_method));
       const sumSupplierPayments = daySupplierPayments.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
       setSupplierPaymentsPaid(sumSupplierPayments);
 

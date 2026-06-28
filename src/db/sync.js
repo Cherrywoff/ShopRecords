@@ -47,6 +47,19 @@ export function startSyncEngine(onSyncStatusChange) {
     triggerSync();
   }, 3000);
 
+  // Automatically retry any quarantined items every 15 seconds
+  setInterval(async () => {
+    try {
+      const q = await dbOps.getAll(STORES.QUARANTINE_QUEUE);
+      if (q.length > 0) {
+        console.log(`Auto-retrying ${q.length} quarantined sync items...`);
+        await retryQuarantinedItems();
+      }
+    } catch (e) {
+      console.warn('Auto-retry quarantined failed:', e);
+    }
+  }, 15000);
+
   // Initial scan
   triggerSync();
 }
