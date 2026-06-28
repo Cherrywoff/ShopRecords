@@ -91,7 +91,7 @@ export const AppProvider = ({ children }) => {
           if (isSupabaseConfigured && navigator.onLine) {
             const { data: userRecord } = await supabase
               .from('users')
-              .select('*, shops(*)')
+              .select('*')
               .eq('email', cachedUser.email)
               .eq('password', cachedUser.password)
               .single();
@@ -103,6 +103,16 @@ export const AppProvider = ({ children }) => {
                 setCurrentShop(null);
                 alert('Your account is suspended. Contact Admin.');
               } else {
+                let shop = null;
+                if (userRecord.shop_id) {
+                  const { data: shopRecord } = await supabase
+                    .from('shops')
+                    .select('*')
+                    .eq('id', userRecord.shop_id)
+                    .single();
+                  if (shopRecord) shop = shopRecord;
+                }
+
                 const cleanProfile = {
                   id: userRecord.id,
                   name: userRecord.name,
@@ -112,10 +122,10 @@ export const AppProvider = ({ children }) => {
                   shop_id: userRecord.shop_id
                 };
                 setCurrentUser(cleanProfile);
-                setCurrentShop(userRecord.shops);
+                setCurrentShop(shop);
                 
                 await dbOps.put(STORES.USERS, cleanProfile);
-                if (userRecord.shops) await dbOps.put(STORES.SHOPS, userRecord.shops);
+                if (shop) await dbOps.put(STORES.SHOPS, shop);
               }
             } else {
               localStorage.removeItem('offline_session');
@@ -813,7 +823,7 @@ export const AppProvider = ({ children }) => {
       try {
         const { data: userRecord, error } = await supabase
           .from('users')
-          .select('*, shops(*)')
+          .select('*')
           .eq('email', email)
           .eq('password', password)
           .single();
@@ -827,7 +837,15 @@ export const AppProvider = ({ children }) => {
           return false;
         }
 
-        const shop = userRecord.shops;
+        let shop = null;
+        if (userRecord.shop_id) {
+          const { data: shopRecord } = await supabase
+            .from('shops')
+            .select('*')
+            .eq('id', userRecord.shop_id)
+            .single();
+          if (shopRecord) shop = shopRecord;
+        }
         const cleanProfile = {
           id: userRecord.id,
           name: userRecord.name,

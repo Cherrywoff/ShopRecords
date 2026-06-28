@@ -207,20 +207,24 @@ async function processQueueItem(item) {
     } else {
       // Last-Write-Wins timestamp check
       if (data && data.updated_at) {
-        const { data: serverRecord } = await supabase
-          .from(tableName)
-          .select('updated_at')
-          .eq('id', recordId)
-          .maybeSingle();
-        
-        if (serverRecord && serverRecord.updated_at) {
-          const serverTime = new Date(serverRecord.updated_at).getTime();
-          const localTime = new Date(data.updated_at).getTime();
+        try {
+          const { data: serverRecord, error: serverError } = await supabase
+            .from(tableName)
+            .select('updated_at')
+            .eq('id', recordId)
+            .maybeSingle();
           
-          if (serverTime > localTime) {
-            console.log(`Sync conflict resolved (LWW): Server record is newer than local update. Skipping upsert for table ${tableName}, id ${recordId}.`);
-            return { success: true };
+          if (!serverError && serverRecord && serverRecord.updated_at) {
+            const serverTime = new Date(serverRecord.updated_at).getTime();
+            const localTime = new Date(data.updated_at).getTime();
+            
+            if (serverTime > localTime) {
+              console.log(`Sync conflict resolved (LWW): Server record is newer than local update. Skipping upsert for table ${tableName}, id ${recordId}.`);
+              return { success: true };
+            }
           }
+        } catch (e) {
+          console.warn(`LWW check skipped for ${tableName} due to error or missing column:`, e);
         }
       }
 
