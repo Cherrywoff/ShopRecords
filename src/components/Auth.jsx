@@ -5,6 +5,7 @@ export default function Auth() {
   const { handleLogin, isOnline } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -53,11 +54,11 @@ export default function Auth() {
 
         <form onSubmit={handleSubmit} className="flex-column-gap">
           <div className="form-group">
-            <label className="form-label">Email Address</label>
+            <label className="form-label">User ID / Email</label>
             <input
-              type="email"
+              type="text"
               className="input"
-              placeholder="e.g. admin@shoprecords.com"
+              placeholder="e.g. owner1 or admin"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -67,13 +68,22 @@ export default function Auth() {
           <div className="form-group">
             <label className="form-label">Password</label>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               className="input"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', marginTop: '0.35rem', cursor: 'pointer', userSelect: 'none', color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+                style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+              />
+              Show Password
+            </label>
           </div>
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }} disabled={loading}>

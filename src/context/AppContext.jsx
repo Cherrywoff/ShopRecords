@@ -855,12 +855,12 @@ export const AppProvider = ({ children }) => {
         const { data: userRecord, error } = await supabase
           .from('users')
           .select('*')
-          .eq('email', email)
+          .ilike('email', email)
           .eq('password', password)
-          .single();
+          .maybeSingle();
 
         if (error || !userRecord) {
-          throw new Error('Invalid email or password.');
+          throw new Error('Invalid User ID or password.');
         }
 
         if (userRecord.status === 'Suspended') {
