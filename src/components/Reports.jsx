@@ -360,18 +360,18 @@ export default function Reports() {
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem' }}>
                 <button 
-                  className="btn btn-outline" 
-                  onClick={handleDownloadGstReport}
-                  style={{ minHeight: '38px' }}
-                >
-                  📥 CSV
-                </button>
-                <button 
                   className="btn btn-primary" 
                   onClick={() => setActivePrintReport({ type: 'gst', title: 'GST CA Report Statement', data: getGstData() })}
                   style={{ minHeight: '38px' }}
                 >
-                  🖨️ Export PDF
+                  🖨️ Export PDF Report
+                </button>
+                <button 
+                  className="btn btn-outline" 
+                  onClick={handleDownloadGstReport}
+                  style={{ minHeight: '38px' }}
+                >
+                  📥 Download CSV
                 </button>
               </div>
             </div>
@@ -426,11 +426,11 @@ export default function Reports() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1.1rem', margin: 0 }}>System Logs (Auditor Trail)</h2>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn btn-outline" onClick={handleDownloadAuditReport}>
-                  📥 CSV
-                </button>
                 <button className="btn btn-primary" onClick={() => setActivePrintReport({ type: 'audit', title: 'System Activity Logs', data: getAuditLogs() })}>
-                  🖨️ Export PDF
+                  🖨️ Export PDF Report
+                </button>
+                <button className="btn btn-outline" onClick={handleDownloadAuditReport}>
+                  📥 Download CSV
                 </button>
               </div>
             </div>
@@ -485,11 +485,11 @@ export default function Reports() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1.1rem', margin: 0 }}>Inventory Valuation & Liability</h2>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn btn-outline" onClick={handleDownloadInventoryReport}>
-                  📥 CSV
-                </button>
                 <button className="btn btn-primary" onClick={() => setActivePrintReport({ type: 'inventory', title: 'Inventory Valuation Report', data: getInventoryValuation() })}>
-                  🖨️ Export PDF
+                  🖨️ Export PDF Report
+                </button>
+                <button className="btn btn-outline" onClick={handleDownloadInventoryReport}>
+                  📥 Download CSV
                 </button>
               </div>
             </div>
