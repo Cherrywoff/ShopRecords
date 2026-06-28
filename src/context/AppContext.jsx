@@ -602,6 +602,20 @@ export const AppProvider = ({ children }) => {
     if (!isSubscriptionActive()) return alert('Subscription expired! Write operations locked.');
     const isNew = !product.id;
     const prodId = product.id || generateUUID();
+
+    // Case-insensitive duplicate check
+    const existingProducts = await dbOps.getAll(STORES.PRODUCTS);
+    const hasDuplicate = existingProducts.some(p => 
+      p.id !== prodId && 
+      p.name.trim().toLowerCase() === product.name.trim().toLowerCase() &&
+      (!p.shop_id || p.shop_id === currentUser.shop_id)
+    );
+
+    if (hasDuplicate) {
+      alert(`Error: A product named "${product.name}" already exists in your inventory. Duplicate names are not allowed.`);
+      throw new Error('Duplicate product name');
+    }
+
     const productRecord = {
       ...product,
       id: prodId,

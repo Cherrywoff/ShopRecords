@@ -166,48 +166,90 @@ export default function Inventory() {
             return alert('Excel must contain "Name" and "Selling Price" columns.');
           }
 
-          const importedProducts = [];
+          const { dbOps, STORES } = await import('../db/db');
+          const { queueSyncAction } = await import('../db/sync');
+
+          // Load current inventory list to compare and prevent duplicate records
+          const currentProducts = await dbOps.getAll(STORES.PRODUCTS);
+
+          let importedCount = 0;
+          let updatedCount = 0;
+
           for (let i = 1; i < rows.length; i++) {
             const cols = rows[i];
             if (!cols || cols.length === 0) continue;
 
-            const name = cols[nameIdx];
-            if (!name) continue;
+            const excelName = cols[nameIdx];
+            if (!excelName) continue;
 
-            const prod = {
-              id: generateUUID(),
-              name: String(name).trim(),
-              barcode: barcodeIdx !== -1 && cols[barcodeIdx] ? String(cols[barcodeIdx]).trim() : null,
-              cost_price: costIdx !== -1 && cols[costIdx] ? parseFloat(cols[costIdx]) || 0 : 0,
-              selling_price: parseFloat(cols[sellIdx]) || 0,
-              hsn_code: hsnIdx !== -1 && cols[hsnIdx] ? String(cols[hsnIdx]).trim() : '',
-              gst_rate: gstIdx !== -1 && cols[gstIdx] ? parseFloat(cols[gstIdx]) || 0 : 0,
-              current_stock: stockIdx !== -1 && cols[stockIdx] ? parseFloat(cols[stockIdx]) || 0 : 0,
-              low_stock_threshold: lowIdx !== -1 && cols[lowIdx] ? parseFloat(cols[lowIdx]) || 0 : 0,
-              is_unlisted: false
-            };
-            importedProducts.push(prod);
+            const nameStr = String(excelName).trim();
+            const excelSellingPrice = parseFloat(cols[sellIdx]) || 0;
+            const excelStock = stockIdx !== -1 && cols[stockIdx] ? parseFloat(cols[stockIdx]) || 0 : 0;
+            const excelBarcode = barcodeIdx !== -1 && cols[barcodeIdx] ? String(cols[barcodeIdx]).trim() : null;
+            const excelCostPrice = costIdx !== -1 && cols[costIdx] ? parseFloat(cols[costIdx]) || 0 : 0;
+            const excelHsnCode = hsnIdx !== -1 && cols[hsnIdx] ? String(cols[hsnIdx]).trim() : '';
+            const excelGstRate = gstIdx !== -1 && cols[gstIdx] ? parseFloat(cols[gstIdx]) || 0 : 0;
+            const excelLowThreshold = lowIdx !== -1 && cols[lowIdx] ? parseFloat(cols[lowIdx]) || 0 : 0;
+
+            // Check if product with same name already exists (case-insensitive)
+            const existing = currentProducts.find(p => 
+              p.name.trim().toLowerCase() === nameStr.toLowerCase() &&
+              (!p.shop_id || p.shop_id === currentUser.shop_id)
+            );
+
+            if (existing) {
+              // Reconcile and add stock
+              const oldStock = parseFloat(existing.current_stock || 0);
+              existing.current_stock = oldStock + excelStock;
+              
+              // Selling price preference goes to Excel file
+              existing.selling_price = excelSellingPrice;
+
+              // Reconcile other details
+              if (barcodeIdx !== -1 && excelBarcode) existing.barcode = excelBarcode;
+              if (costIdx !== -1) existing.cost_price = excelCostPrice;
+              if (hsnIdx !== -1) existing.hsn_code = excelHsnCode;
+              if (gstIdx !== -1) existing.gst_rate = excelGstRate;
+              if (lowIdx !== -1) existing.low_stock_threshold = excelLowThreshold;
+
+              const productRecord = {
+                ...existing,
+                performed_by_user_id: currentUser.id,
+                performed_by_name: currentUser.name,
+                performed_by_role: currentUser.role,
+                updated_at: new Date().toISOString()
+              };
+
+              await dbOps.put(STORES.PRODUCTS, productRecord);
+              await queueSyncAction(STORES.PRODUCTS, existing.id, 'UPDATE', productRecord);
+              updatedCount++;
+            } else {
+              // Create new product
+              const newProd = {
+                id: generateUUID(),
+                name: nameStr,
+                barcode: excelBarcode,
+                cost_price: excelCostPrice,
+                selling_price: excelSellingPrice,
+                hsn_code: excelHsnCode,
+                gst_rate: excelGstRate,
+                current_stock: excelStock,
+                low_stock_threshold: excelLowThreshold,
+                is_unlisted: false,
+                shop_id: currentUser.shop_id,
+                performed_by_user_id: currentUser.id,
+                performed_by_name: currentUser.name,
+                performed_by_role: currentUser.role,
+                updated_at: new Date().toISOString()
+              };
+
+              await dbOps.put(STORES.PRODUCTS, newProd);
+              await queueSyncAction(STORES.PRODUCTS, newProd.id, 'INSERT', newProd);
+              importedCount++;
+            }
           }
 
-          if (importedProducts.length === 0) return alert('No valid products found in Excel sheet.');
-
-          const { dbOps, STORES } = await import('../db/db');
-          const { queueSyncAction } = await import('../db/sync');
-
-          for (const p of importedProducts) {
-            const productRecord = {
-              ...p,
-              shop_id: currentUser.shop_id,
-              performed_by_user_id: currentUser.id,
-              performed_by_name: currentUser.name,
-              performed_by_role: currentUser.role,
-              updated_at: new Date().toISOString()
-            };
-            await dbOps.put(STORES.PRODUCTS, productRecord);
-            await queueSyncAction(STORES.PRODUCTS, p.id, 'INSERT', productRecord);
-          }
-
-          alert(`Successfully imported ${importedProducts.length} products!`);
+          alert(`Bulk Import Complete!\n- Added ${importedCount} new products\n- Updated stock/price for ${updatedCount} existing products.`);
           window.location.reload();
         } catch (err) {
           alert('Error parsing Excel file: ' + err.message);

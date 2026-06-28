@@ -102,7 +102,8 @@ export default function DailyClosing() {
       difference,
       cash_sales: cashSales,
       udhar_payments_received: udharReceived,
-      expenses: expenseTotal
+      expenses: expenseTotal,
+      supplier_payments: supplierPaymentsPaid
     });
 
     alert('Daily Cash Register closed and saved successfully!');
@@ -244,6 +245,7 @@ export default function DailyClosing() {
                 <th>Sales (Cash)</th>
                 <th>Udhar Received</th>
                 <th>Expenses</th>
+                <th>Suppliers Paid</th>
                 <th>Physical Closed</th>
                 <th>Difference</th>
                 <th>Verified By</th>
@@ -252,7 +254,7 @@ export default function DailyClosing() {
             <tbody>
               {dailyClosings.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>No closing shifts locked.</td>
+                  <td colSpan="9" style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>No closing shifts locked.</td>
                 </tr>
               ) : (
                 dailyClosings.sort((a,b) => new Date(b.closing_date) - new Date(a.closing_date)).map((c) => (
@@ -262,6 +264,7 @@ export default function DailyClosing() {
                     <td>₹{parseFloat(c.cash_sales).toFixed(2)}</td>
                     <td>₹{parseFloat(c.udhar_payments_received).toFixed(2)}</td>
                     <td>₹{parseFloat(c.expenses).toFixed(2)}</td>
+                    <td>₹{parseFloat(c.supplier_payments || 0).toFixed(2)}</td>
                     <td style={{ fontWeight: 700 }}>₹{parseFloat(c.physical_cash).toFixed(2)}</td>
                     <td style={{ fontWeight: 700, color: parseFloat(c.difference) >= 0 ? 'var(--primary)' : 'var(--accent-error)' }}>
                       ₹{parseFloat(c.difference).toFixed(2)}

@@ -504,6 +504,14 @@ export default function Udhar() {
                   <span className="text-secondary-label">Invoice Meta:</span>
                   <p style={{ fontSize: '0.85rem' }}><strong>Date:</strong> {new Date(selectedInvoice.created_at).toLocaleString()}</p>
                   <p style={{ fontSize: '0.85rem' }}><strong>Billed By:</strong> {selectedInvoice.performed_by_name} ({selectedInvoice.performed_by_role})</p>
+                  <p style={{ fontSize: '0.85rem' }}>
+                    <strong>Payment Method:</strong> <span className="badge badge-primary" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius-sm)', marginLeft: '0.25rem' }}>{selectedInvoice.payment_method}</span>
+                  </p>
+                  {selectedInvoice.payment_method === 'Split' && selectedInvoice.payment_details && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                      (Cash: ₹{parseFloat(selectedInvoice.payment_details.Cash || selectedInvoice.payment_details.cash || 0).toFixed(2)}, UPI/Card: ₹{parseFloat(selectedInvoice.payment_details.UPI || selectedInvoice.payment_details.upi || selectedInvoice.payment_details.Card || selectedInvoice.payment_details.card || 0).toFixed(2)})
+                    </p>
+                  )}
                 </div>
               </div>
 
