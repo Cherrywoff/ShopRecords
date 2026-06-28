@@ -391,10 +391,17 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
 }
 
+.print-receipt-section {
+  display: none;
+}
+
 /* Receipt Print layout */
 @media print {
-  body > * {
-    display: none !important;
+  body * {
+    visibility: hidden;
+  }
+  .print-receipt-section, .print-receipt-section * {
+    visibility: visible;
   }
   .print-receipt-section {
     display: block !important;
@@ -409,23 +416,10 @@ h1, h2, h3, h4, h5, h6 {
     color: #000 !important;
     background: #fff !important;
   }
-  .print-receipt-section * {
-    display: initial;
-    color: #000 !important;
-    background: transparent !important;
-  }
   .print-receipt-section table {
-    display: table !important;
     width: 100% !important;
   }
-  .print-receipt-section tr {
-    display: table-row !important;
-  }
-  .print-receipt-section th, .print-receipt-section td {
-    display: table-cell !important;
-  }
   .print-receipt-section hr {
-    display: block !important;
     border-top: 1px dashed #000 !important;
     border-bottom: none !important;
     border-left: none !important;
@@ -433,7 +427,7 @@ h1, h2, h3, h4, h5, h6 {
     margin: 2mm 0 !important;
   }
   .print-receipt-section button {
-    display: none !important; /* Hide Done Printing button from bill print! */
+    display: none !important;
   }
 }
 

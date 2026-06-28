@@ -24,6 +24,11 @@ export const AppProvider = ({ children }) => {
   const [currentShop, setCurrentShop] = useState(null); // { id, name, plan, expiry_date, employee_limit, device_limit }
   const [loadingAuth, setLoadingAuth] = useState(true);
 
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
   // Impersonation / Support Mode State
   const [supportMode, setSupportMode] = useState({
     isActive: false,
@@ -136,11 +141,12 @@ export const AppProvider = ({ children }) => {
   }, [isOnline]);
 
   const pullAllTablesFromCloud = async () => {
-    if (!isSupabaseConfigured || !navigator.onLine || !currentUser) return;
+    const activeUser = currentUserRef.current;
+    if (!isSupabaseConfigured || !navigator.onLine || !activeUser) return;
     
     try {
-      const isSystemAdmin = currentUser.role === 'Admin';
-      const myShopId = currentUser.shop_id;
+      const isSystemAdmin = activeUser.role === 'Admin';
+      const myShopId = activeUser.shop_id;
 
       // 1. Fetch Shops
       let shopsQuery = supabase.from('shops').select('*');
@@ -217,13 +223,16 @@ export const AppProvider = ({ children }) => {
       const dc = await dbOps.getAll(STORES.DAILY_CLOSINGS);
       const q = await dbOps.getAll(STORES.QUARANTINE_QUEUE);
 
-      setProducts(p.filter(item => !item.shop_id || item.shop_id === currentUser?.shop_id));
-      setCustomers(c.filter(item => !item.shop_id || item.shop_id === currentUser?.shop_id));
-      setSales(s.filter(item => !item.shop_id || item.shop_id === currentUser?.shop_id));
+      const activeUser = currentUserRef.current;
+      const isAdmin = activeUser?.role === 'Admin';
+
+      setProducts(p.filter(item => isAdmin || !item.shop_id || item.shop_id === activeUser?.shop_id));
+      setCustomers(c.filter(item => isAdmin || !item.shop_id || item.shop_id === activeUser?.shop_id));
+      setSales(s.filter(item => isAdmin || !item.shop_id || item.shop_id === activeUser?.shop_id));
       setSaleItems(si);
-      setExpenses(ex.filter(item => !item.shop_id || item.shop_id === currentUser?.shop_id));
-      setSuppliers(sup.filter(item => !item.shop_id || item.shop_id === currentUser?.shop_id));
-      setDailyClosings(dc.filter(item => !item.shop_id || item.shop_id === currentUser?.shop_id));
+      setExpenses(ex.filter(item => isAdmin || !item.shop_id || item.shop_id === activeUser?.shop_id));
+      setSuppliers(sup.filter(item => isAdmin || !item.shop_id || item.shop_id === activeUser?.shop_id));
+      setDailyClosings(dc.filter(item => isAdmin || !item.shop_id || item.shop_id === activeUser?.shop_id));
       setQuarantineQueue(q);
     } catch (e) {
       console.error('Error loading data from IndexedDB:', e);

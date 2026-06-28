@@ -53,6 +53,7 @@ export default function POS() {
     if (!carryBag) {
       // Create one
       const newBag = {
+        id: generateUUID(),
         name: 'Carry Bag',
         barcode: 'CARRYBAG',
         cost_price: 1.00,
@@ -120,6 +121,8 @@ export default function POS() {
       return alert('Customer must be selected for Udhar (credit) transactions.');
     }
 
+    const cartCopy = [...cart];
+
     const sale = await checkout({
       paymentMethod,
       customerId: selectedCustomerId,
@@ -130,7 +133,7 @@ export default function POS() {
       // Save for printing receipt
       setActiveReceipt({
         ...sale,
-        items: [...cart]
+        items: cartCopy
       });
       // Clear inputs
       setSelectedCustomerId('');
@@ -439,6 +442,7 @@ export default function POS() {
             <p style={{ margin: '1px 0', fontSize: '9px' }}>Retail GST Invoice</p>
             <p style={{ margin: '1px 0', fontSize: '9px' }}>Invoice: {activeReceipt.invoice_number}</p>
             <p style={{ margin: '1px 0', fontSize: '9px' }}>Date: {new Date(activeReceipt.created_at).toLocaleString('en-IN')}</p>
+            <p style={{ margin: '1px 0', fontSize: '9px', fontWeight: 'bold' }}>Billed By: {activeReceipt.performed_by_name || 'Staff'}</p>
           </div>
           
           <hr style={{ borderTop: '1px dashed #000', margin: '1mm 0' }} />
@@ -460,14 +464,15 @@ export default function POS() {
             </thead>
             <tbody>
               {activeReceipt.items.map((item) => {
-                const qty = parseFloat(item.quantity);
-                const rate = parseFloat(item.customPrice);
-                const gstRate = parseFloat(item.product.gst_rate || 0);
+                if (!item || !item.product) return null;
+                const qty = parseFloat(item.quantity || 0);
+                const rate = parseFloat(item.customPrice || 0);
+                const gstRate = parseFloat(item.product?.gst_rate || 0);
                 const total = rate * qty;
                 return (
-                  <tr key={item.product.id} style={{ borderBottom: '0.5px dotted #ccc' }}>
+                  <tr key={item.product?.id} style={{ borderBottom: '0.5px dotted #ccc' }}>
                     <td style={{ paddingTop: '2px', paddingBottom: '2px' }}>
-                      {item.product.name} {item.product.hsn_code ? `(${item.product.hsn_code})` : ''}
+                      {item.product?.name} {item.product?.hsn_code ? `(${item.product.hsn_code})` : ''}
                     </td>
                     <td style={{ textAlign: 'center' }}>{qty}</td>
                     <td style={{ textAlign: 'right' }}>₹{rate.toFixed(2)}</td>
@@ -519,9 +524,10 @@ export default function POS() {
                     // Group taxes by rate
                     const taxGroups = {};
                     activeReceipt.items.forEach(item => {
-                      const rate = parseFloat(item.product.gst_rate || 0);
+                      if (!item || !item.product) return;
+                      const rate = parseFloat(item.product?.gst_rate || 0);
                       if (rate > 0) {
-                        const totalItemPrice = item.customPrice * item.quantity;
+                        const totalItemPrice = (item.customPrice || 0) * (item.quantity || 0);
                         const basePrice = totalItemPrice / (1 + (rate / 100));
                         const tax = totalItemPrice - basePrice;
                         if (!taxGroups[rate]) {
@@ -601,12 +607,15 @@ export default function POS() {
                 <hr style={{ borderTop: '1px dashed var(--border-color)', margin: '0.5rem 0' }} />
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  {activeReceipt.items.map(item => (
-                    <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{item.product.name} x {item.quantity}</span>
-                      <span>₹{(item.customPrice * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
+                  {activeReceipt.items.map(item => {
+                    if (!item || !item.product) return null;
+                    return (
+                      <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{item.product.name} x {item.quantity}</span>
+                        <span>₹{(item.customPrice * item.quantity).toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <hr style={{ borderTop: '1px dashed var(--border-color)', margin: '0.5rem 0' }} />
