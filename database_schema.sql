@@ -267,5 +267,32 @@ CREATE INDEX idx_sales_shop_date ON public.sales(shop_id, created_at DESC);
 CREATE INDEX idx_sale_items_sale_id ON public.sale_items(sale_id);
 CREATE INDEX idx_expenses_shop_date ON public.expenses(shop_id, expense_date DESC);
 CREATE INDEX idx_customer_tx_customer ON public.customer_transactions(customer_id);
-CREATE INDEX idx_supplier_tx_supplier ON public.supplier_transactions(supplier_id);
+CREATE INDEX idx_supplier_tx_supplier ON public.suppliers(shop_id);
 CREATE INDEX idx_daily_closing_date ON public.daily_closings(shop_id, closing_date DESC);
+
+-- ==========================================
+-- AUTOMATIC PROFILE CREATION ON USER SIGNUP
+-- ==========================================
+
+-- Function to handle auto-creation of a profile row
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, role, status, shop_id)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    COALESCE(new.raw_user_meta_data->>'role', 'Owner'),
+    'Active',
+    NULL
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to execute on auth.users insert
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
