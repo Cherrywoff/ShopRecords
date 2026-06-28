@@ -79,56 +79,50 @@ export const AppProvider = ({ children }) => {
     const checkSession = async () => {
       setLoadingAuth(true);
       try {
-        if (isSupabaseConfigured && navigator.onLine) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            // Fetch profile
-            const { data: profile } = await supabase
-              .from('profiles')
+        const cachedSession = localStorage.getItem('offline_session');
+        if (cachedSession) {
+          const cachedUser = JSON.parse(cachedSession);
+          
+          if (isSupabaseConfigured && navigator.onLine) {
+            const { data: userRecord } = await supabase
+              .from('users')
               .select('*, shops(*)')
-              .eq('id', session.user.id)
+              .eq('email', cachedUser.email)
+              .eq('password', cachedUser.password)
               .single();
 
-            if (profile) {
-              const shop = profile.shops;
-              const cleanProfile = {
-                id: profile.id,
-                name: profile.name,
-                email: session.user.email,
-                role: profile.role,
-                shop_id: profile.shop_id,
-                status: profile.status
-              };
-              
-              if (profile.status === 'Suspended') {
-                await supabase.auth.signOut();
+            if (userRecord) {
+              if (userRecord.status === 'Suspended') {
+                localStorage.removeItem('offline_session');
+                setCurrentUser(null);
+                setCurrentShop(null);
                 alert('Your account is suspended. Contact Admin.');
               } else {
+                const cleanProfile = {
+                  id: userRecord.id,
+                  name: userRecord.name,
+                  email: userRecord.email,
+                  password: userRecord.password,
+                  role: userRecord.role,
+                  shop_id: userRecord.shop_id
+                };
                 setCurrentUser(cleanProfile);
-                setCurrentShop(shop);
+                setCurrentShop(userRecord.shops);
                 
-                // Cache user & profile details locally for offline fallback
-                await dbOps.put(STORES.PROFILES, cleanProfile);
-                if (shop) await dbOps.put(STORES.SHOPS, shop);
-                await dbOps.put(STORES.OFFLINE_AUTH_CACHE, {
-                  id: cleanProfile.id,
-                  email: cleanProfile.email,
-                  name: cleanProfile.name,
-                  role: cleanProfile.role,
-                  shop_id: cleanProfile.shop_id,
-                  shopName: shop?.name || ''
-                });
+                await dbOps.put(STORES.USERS, cleanProfile);
+                if (userRecord.shops) await dbOps.put(STORES.SHOPS, userRecord.shops);
               }
+            } else {
+              localStorage.removeItem('offline_session');
+              setCurrentUser(null);
+              setCurrentShop(null);
             }
-          }
-        } else {
-          // Offline mode / Supabase not setup - check local storage session
-          const cachedSession = localStorage.getItem('offline_session');
-          if (cachedSession) {
-            const user = JSON.parse(cachedSession);
-            setCurrentUser(user);
-            const shop = await dbOps.get(STORES.SHOPS, user.shop_id);
-            setCurrentShop(shop);
+          } else {
+            setCurrentUser(cachedUser);
+            if (cachedUser.shop_id) {
+              const shop = await dbOps.get(STORES.SHOPS, cachedUser.shop_id);
+              setCurrentShop(shop);
+            }
           }
         }
       } catch (err) {
@@ -604,8 +598,8 @@ export const AppProvider = ({ children }) => {
             created_at: new Date().toISOString()
           };
 
-          await supabase.from('profiles').insert(newProfile);
-          await dbOps.put(STORES.PROFILES, newProfile);
+          await supabase.from('users').insert(newProfile);
+          await dbOps.put(STORES.USERS, newProfile);
           
           alert('Registration successful! Please confirm your login details.');
           return true;
@@ -640,7 +634,7 @@ export const AppProvider = ({ children }) => {
         status: 'Active',
         created_at: new Date().toISOString()
       };
-      await dbOps.put(STORES.PROFILES, localProfile);
+      await dbOps.put(STORES.USERS, localProfile);
       await dbOps.put(STORES.OFFLINE_AUTH_CACHE, {
         id: userId,
         email,
@@ -662,89 +656,79 @@ export const AppProvider = ({ children }) => {
   const handleLogin = async (email, password) => {
     if (isSupabaseConfigured && navigator.onLine) {
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        
-        if (data.user) {
-          const { data: profile, error: profileErr } = await supabase
-            .from('profiles')
-            .select('*, shops(*)')
-            .eq('id', data.user.id)
-            .single();
+        const { data: userRecord, error } = await supabase
+          .from('users')
+          .select('*, shops(*)')
+          .eq('email', email)
+          .eq('password', password)
+          .single();
 
-          if (profileErr || !profile) {
-            throw new Error('Associated profile not found in public schemas.');
-          }
-
-          if (profile.status === 'Suspended') {
-            await supabase.auth.signOut();
-            alert('Your profile has been suspended by the administrator.');
-            return false;
-          }
-
-          const shop = profile.shops;
-          const cleanProfile = {
-            id: profile.id,
-            name: profile.name,
-            email,
-            role: profile.role,
-            shop_id: profile.shop_id
-          };
-
-          setCurrentUser(cleanProfile);
-          setCurrentShop(shop);
-
-          // Cache in IndexedDB
-          await dbOps.put(STORES.PROFILES, cleanProfile);
-          if (shop) await dbOps.put(STORES.SHOPS, shop);
-          await dbOps.put(STORES.OFFLINE_AUTH_CACHE, {
-            id: cleanProfile.id,
-            email: cleanProfile.email,
-            name: cleanProfile.name,
-            role: cleanProfile.role,
-            shop_id: cleanProfile.shop_id,
-            shopName: shop?.name || ''
-          });
-
-          return true;
+        if (error || !userRecord) {
+          throw new Error('Invalid email or password.');
         }
+
+        if (userRecord.status === 'Suspended') {
+          alert('Your profile has been suspended by the administrator.');
+          return false;
+        }
+
+        const shop = userRecord.shops;
+        const cleanProfile = {
+          id: userRecord.id,
+          name: userRecord.name,
+          email: userRecord.email,
+          password: userRecord.password,
+          role: userRecord.role,
+          shop_id: userRecord.shop_id
+        };
+
+        setCurrentUser(cleanProfile);
+        setCurrentShop(shop);
+
+        // Save session
+        localStorage.setItem('offline_session', JSON.stringify(cleanProfile));
+
+        // Cache in IndexedDB
+        await dbOps.put(STORES.USERS, cleanProfile);
+        if (shop) await dbOps.put(STORES.SHOPS, shop);
+        await dbOps.put(STORES.OFFLINE_AUTH_CACHE, {
+          id: cleanProfile.id,
+          email: cleanProfile.email,
+          name: cleanProfile.name,
+          role: cleanProfile.role,
+          shop_id: cleanProfile.shop_id,
+          shopName: shop?.name || ''
+        });
+
+        return true;
       } catch (err) {
         alert(err.message);
         return false;
       }
     } else {
-      // OFFLINE LOGIN FALLBACK (Credentials verification from offline_auth_cache)
-      const offlineCache = await dbOps.getAll(STORES.OFFLINE_AUTH_CACHE);
-      const matchedUser = offlineCache.find(u => u.email.toLowerCase() === email.toLowerCase());
-      
+      // OFFLINE LOGIN FALLBACK
+      const offlineUsers = await dbOps.getAll(STORES.USERS);
+      const matchedUser = offlineUsers.find(
+        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+      );
+
       if (matchedUser) {
-        const userObj = {
-          id: matchedUser.id,
-          name: matchedUser.name,
-          email: matchedUser.email,
-          role: matchedUser.role,
-          shop_id: matchedUser.shop_id
-        };
-        
-        const localShop = await dbOps.get(STORES.SHOPS, matchedUser.shop_id);
-        
-        setCurrentUser(userObj);
-        setCurrentShop(localShop);
-        localStorage.setItem('offline_session', JSON.stringify(userObj));
+        setCurrentUser(matchedUser);
+        if (matchedUser.shop_id) {
+          const localShop = await dbOps.get(STORES.SHOPS, matchedUser.shop_id);
+          setCurrentShop(localShop);
+        }
+        localStorage.setItem('offline_session', JSON.stringify(matchedUser));
         alert(`Offline login successful! Logged in as ${matchedUser.role}.`);
         return true;
       } else {
-        alert('Authentication failed. No offline cache record exists for this email. Log in once online first.');
+        alert('Authentication failed. No offline cache record exists for this account. Log in once online first.');
         return false;
       }
     }
   };
 
   const handleLogout = async () => {
-    if (isSupabaseConfigured && navigator.onLine) {
-      await supabase.auth.signOut();
-    }
-    
     // Clear Session
     setCurrentUser(null);
     setCurrentShop(null);

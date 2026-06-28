@@ -1,9 +1,24 @@
 -- ==========================================
 -- SHOPRECORDS DATABASE SCHEMA AND INITIALIZATION
+-- (RLS BYPASSED FOR CUSTOM TABLE AUTHENTICATION)
 -- ==========================================
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Wipe existing tables
+DROP TABLE IF EXISTS public.daily_closings CASCADE;
+DROP TABLE IF EXISTS public.customer_transactions CASCADE;
+DROP TABLE IF EXISTS public.supplier_transactions CASCADE;
+DROP TABLE IF EXISTS public.suppliers CASCADE;
+DROP TABLE IF EXISTS public.expenses CASCADE;
+DROP TABLE IF EXISTS public.sale_items CASCADE;
+DROP TABLE IF EXISTS public.sales CASCADE;
+DROP TABLE IF EXISTS public.customers CASCADE;
+DROP TABLE IF EXISTS public.products CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+DROP TABLE IF EXISTS public.shops CASCADE;
 
 -- 1. SHOPS TABLE
 CREATE TABLE public.shops (
@@ -16,13 +31,14 @@ CREATE TABLE public.shops (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. PROFILES TABLE (Store Roles and Shop Association)
-CREATE TABLE public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    shop_id UUID REFERENCES public.shops(id) ON DELETE SET NULL,
+-- 2. USERS TABLE (Custom User Auth - No Supabase Auth needed)
+CREATE TABLE public.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    shop_id UUID REFERENCES public.shops(id) ON DELETE SET NULL, -- NULL for Admin
     role TEXT NOT NULL CHECK (role IN ('Admin', 'Owner', 'Manager', 'Cashier')),
     name TEXT NOT NULL,
-    phone TEXT,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Suspended')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -169,93 +185,19 @@ CREATE TABLE public.daily_closings (
 );
 
 -- ==========================================
--- ROW LEVEL SECURITY (RLS) HELPER FUNCTIONS
+-- DISABLE ROW LEVEL SECURITY (RLS) FOR DIRECT ACCESS
 -- ==========================================
-
--- Security Definer function to fetch user's shop_id avoiding RLS recursion
-CREATE OR REPLACE FUNCTION public.get_my_shop_id()
-RETURNS UUID
-SECURITY DEFINER
-AS $$
-  SELECT shop_id FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql;
-
--- Security Definer function to fetch user's role avoiding RLS recursion
-CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS TEXT
-SECURITY DEFINER
-AS $$
-  SELECT role FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql;
-
--- ==========================================
--- ENABLE RLS & DEFINE TENANT ISOLATION POLICIES
--- ==========================================
-
--- Enable RLS on all tables
-ALTER TABLE public.shops ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.supplier_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customer_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.daily_closings ENABLE ROW LEVEL SECURITY;
-
--- --- SHOPS POLICIES ---
-CREATE POLICY shops_admin_all ON public.shops
-    FOR ALL USING (get_my_role() = 'Admin');
-
-CREATE POLICY shops_owner_view ON public.shops
-    FOR SELECT USING (id = get_my_shop_id());
-
--- --- PROFILES POLICIES ---
-CREATE POLICY profiles_admin_all ON public.profiles
-    FOR ALL USING (get_my_role() = 'Admin');
-
-CREATE POLICY profiles_shop_member ON public.profiles
-    FOR ALL USING (shop_id = get_my_shop_id());
-
--- --- PRODUCTS POLICIES ---
-CREATE POLICY products_all_policy ON public.products
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
-
--- --- CUSTOMERS POLICIES ---
-CREATE POLICY customers_all_policy ON public.customers
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
-
--- --- SALES POLICIES ---
-CREATE POLICY sales_all_policy ON public.sales
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
-
--- --- SALE ITEMS POLICIES ---
-CREATE POLICY sale_items_all_policy ON public.sale_items
-    FOR ALL USING (
-        sale_id IN (SELECT id FROM public.sales WHERE shop_id = get_my_shop_id() OR get_my_role() = 'Admin')
-    );
-
--- --- EXPENSES POLICIES ---
-CREATE POLICY expenses_all_policy ON public.expenses
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
-
--- --- SUPPLIERS POLICIES ---
-CREATE POLICY suppliers_all_policy ON public.suppliers
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
-
--- --- SUPPLIER TRANSACTIONS POLICIES ---
-CREATE POLICY supplier_transactions_all_policy ON public.supplier_transactions
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
-
--- --- CUSTOMER TRANSACTIONS POLICIES ---
-CREATE POLICY customer_transactions_all_policy ON public.customer_transactions
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
-
--- --- DAILY CLOSINGS POLICIES ---
-CREATE POLICY daily_closings_all_policy ON public.daily_closings
-    FOR ALL USING (shop_id = get_my_shop_id() OR get_my_role() = 'Admin');
+ALTER TABLE public.shops DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sales DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sale_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.supplier_transactions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_transactions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_closings DISABLE ROW LEVEL SECURITY;
 
 -- ==========================================
 -- INDEXES FOR OPTIMAL SEARCH & FETCH PERFORMANCE
@@ -269,30 +211,3 @@ CREATE INDEX idx_expenses_shop_date ON public.expenses(shop_id, expense_date DES
 CREATE INDEX idx_customer_tx_customer ON public.customer_transactions(customer_id);
 CREATE INDEX idx_supplier_tx_supplier ON public.suppliers(shop_id);
 CREATE INDEX idx_daily_closing_date ON public.daily_closings(shop_id, closing_date DESC);
-
--- ==========================================
--- AUTOMATIC PROFILE CREATION ON USER SIGNUP
--- ==========================================
-
--- Function to handle auto-creation of a profile row
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, name, role, status, shop_id)
-  VALUES (
-    new.id,
-    COALESCE(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
-    COALESCE(new.raw_user_meta_data->>'role', 'Owner'),
-    'Active',
-    NULL
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Trigger to execute on auth.users insert
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-

@@ -7,7 +7,7 @@ const DB_VERSION = 1;
 
 export const STORES = {
   SHOPS: 'shops',
-  PROFILES: 'profiles',
+  USERS: 'users',
   PRODUCTS: 'products',
   CUSTOMERS: 'customers',
   SALES: 'sales',

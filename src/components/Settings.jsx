@@ -26,7 +26,7 @@ export default function Settings() {
 
   const loadEmployees = async () => {
     try {
-      const allProfiles = await dbOps.getAll(STORES.PROFILES);
+      const allProfiles = await dbOps.getAll(STORES.USERS);
       const shopEmployees = allProfiles.filter(p => p.shop_id === currentUser.shop_id && p.role !== 'Owner');
       setEmployees(shopEmployees);
     } catch (e) {
@@ -64,13 +64,14 @@ export default function Settings() {
       shop_id: currentUser.shop_id,
       role: empRole,
       name: empName,
-      email: empEmail, // Added for offline match
+      email: empEmail,
+      password: empPassword, // Stored for custom login lookup
       status: 'Active',
       created_at: new Date().toISOString()
     };
 
     // Save locally
-    await dbOps.put(STORES.PROFILES, newProfile);
+    await dbOps.put(STORES.USERS, newProfile);
     
     // Cache in offline auth so they can log in offline
     await dbOps.put(STORES.OFFLINE_AUTH_CACHE, {
@@ -83,7 +84,7 @@ export default function Settings() {
     });
 
     // Queue sync
-    await queueSyncAction(STORES.PROFILES, employeeId, 'INSERT', newProfile);
+    await queueSyncAction(STORES.USERS, employeeId, 'INSERT', newProfile);
 
     // Reset Form
     setEmpName('');

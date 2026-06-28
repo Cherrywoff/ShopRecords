@@ -13,7 +13,7 @@ let statusCallback = null;
 // Registry of Supabase-supported tables that require synchronization
 const SYNCHRONIZED_TABLES = [
   STORES.SHOPS,
-  STORES.PROFILES,
+  STORES.USERS,
   STORES.PRODUCTS,
   STORES.CUSTOMERS,
   STORES.SALES,
