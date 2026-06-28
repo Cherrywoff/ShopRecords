@@ -111,118 +111,112 @@ export default function Inventory() {
     }
   };
 
-  const handleExportCSV = () => {
-    const headers = ['Name', 'Barcode', 'Cost Price', 'Selling Price', 'HSN Code', 'GST Rate', 'Current Stock', 'Low Stock Threshold'];
-    const rows = products.map(p => [
-      p.name,
-      p.barcode || '',
-      p.cost_price,
-      p.selling_price,
-      p.hsn_code || '',
-      p.gst_rate,
-      p.current_stock,
-      p.low_stock_threshold
-    ]);
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(','), ...rows.map(e => e.map(val => `"${val}"`).join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `ShopRecords_Inventory_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExportExcel = async () => {
+    try {
+      const { utils, writeFile } = await import('xlsx');
+      const headers = ['Name', 'Barcode', 'Cost Price', 'Selling Price', 'HSN Code', 'GST Rate', 'Current Stock', 'Low Stock Threshold'];
+      const rows = products.map(p => [
+        p.name,
+        p.barcode || '',
+        p.cost_price,
+        p.selling_price,
+        p.hsn_code || '',
+        p.gst_rate,
+        p.current_stock,
+        p.low_stock_threshold
+      ]);
+
+      const ws = utils.aoa_to_sheet([headers, ...rows]);
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, ws, 'Inventory');
+      writeFile(wb, `ShopRecords_Inventory_${new Date().toISOString().slice(0,10)}.xlsx`);
+    } catch (err) {
+      alert('Error exporting Excel file: ' + err.message);
+    }
   };
 
-  const handleImportCSV = async (e) => {
+  const handleImportExcel = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const text = evt.target.result;
-        const lines = text.split('\n').map(line => line.trim()).filter(line => line);
-        
-        if (lines.length <= 1) return alert('CSV file is empty.');
+    try {
+      const { read, utils } = await import('xlsx');
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows = utils.sheet_to_json(sheet, { header: 1 });
 
-        // Parse headers
-        const headers = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim().toLowerCase());
-        
-        const nameIdx = headers.indexOf('name');
-        const barcodeIdx = headers.indexOf('barcode');
-        const costIdx = headers.indexOf('cost price');
-        const sellIdx = headers.indexOf('selling price');
-        const hsnIdx = headers.indexOf('hsn code');
-        const gstIdx = headers.indexOf('gst rate');
-        const stockIdx = headers.indexOf('current stock');
-        const lowIdx = headers.indexOf('low stock threshold');
+          if (rows.length <= 1) return alert('Excel file is empty.');
 
-        if (nameIdx === -1 || sellIdx === -1) {
-          return alert('CSV must contain "Name" and "Selling Price" columns.');
-        }
+          const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
+          const nameIdx = headers.indexOf('name');
+          const barcodeIdx = headers.indexOf('barcode');
+          const costIdx = headers.indexOf('cost price');
+          const sellIdx = headers.indexOf('selling price');
+          const hsnIdx = headers.indexOf('hsn code');
+          const gstIdx = headers.indexOf('gst rate');
+          const stockIdx = headers.indexOf('current stock');
+          const lowIdx = headers.indexOf('low stock threshold');
 
-        const importedProducts = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = [];
-          let current = '';
-          let inQuotes = false;
-          for (let c = 0; c < lines[i].length; c++) {
-            const char = lines[i][c];
-            if (char === '"' || char === "'") {
-              inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-              cols.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
+          if (nameIdx === -1 || sellIdx === -1) {
+            return alert('Excel must contain "Name" and "Selling Price" columns.');
           }
-          cols.push(current.trim());
 
-          const name = cols[nameIdx];
-          if (!name) continue;
+          const importedProducts = [];
+          for (let i = 1; i < rows.length; i++) {
+            const cols = rows[i];
+            if (!cols || cols.length === 0) continue;
 
-          const prod = {
-            id: generateUUID(),
-            name,
-            barcode: barcodeIdx !== -1 ? cols[barcodeIdx] || null : null,
-            cost_price: costIdx !== -1 ? parseFloat(cols[costIdx]) || 0 : 0,
-            selling_price: parseFloat(cols[sellIdx]) || 0,
-            hsn_code: hsnIdx !== -1 ? cols[hsnIdx] || '' : '',
-            gst_rate: gstIdx !== -1 ? parseFloat(cols[gstIdx]) || 0 : 0,
-            current_stock: stockIdx !== -1 ? parseFloat(cols[stockIdx]) || 0 : 0,
-            low_stock_threshold: lowIdx !== -1 ? parseFloat(cols[lowIdx]) || 0 : 0,
-            is_unlisted: false
-          };
-          importedProducts.push(prod);
+            const name = cols[nameIdx];
+            if (!name) continue;
+
+            const prod = {
+              id: generateUUID(),
+              name: String(name).trim(),
+              barcode: barcodeIdx !== -1 && cols[barcodeIdx] ? String(cols[barcodeIdx]).trim() : null,
+              cost_price: costIdx !== -1 && cols[costIdx] ? parseFloat(cols[costIdx]) || 0 : 0,
+              selling_price: parseFloat(cols[sellIdx]) || 0,
+              hsn_code: hsnIdx !== -1 && cols[hsnIdx] ? String(cols[hsnIdx]).trim() : '',
+              gst_rate: gstIdx !== -1 && cols[gstIdx] ? parseFloat(cols[gstIdx]) || 0 : 0,
+              current_stock: stockIdx !== -1 && cols[stockIdx] ? parseFloat(cols[stockIdx]) || 0 : 0,
+              low_stock_threshold: lowIdx !== -1 && cols[lowIdx] ? parseFloat(cols[lowIdx]) || 0 : 0,
+              is_unlisted: false
+            };
+            importedProducts.push(prod);
+          }
+
+          if (importedProducts.length === 0) return alert('No valid products found in Excel sheet.');
+
+          const { dbOps, STORES } = await import('../db/db');
+          const { queueSyncAction } = await import('../db/sync');
+
+          for (const p of importedProducts) {
+            const productRecord = {
+              ...p,
+              shop_id: currentUser.shop_id,
+              performed_by_user_id: currentUser.id,
+              performed_by_name: currentUser.name,
+              performed_by_role: currentUser.role,
+              updated_at: new Date().toISOString()
+            };
+            await dbOps.put(STORES.PRODUCTS, productRecord);
+            await queueSyncAction(STORES.PRODUCTS, p.id, 'INSERT', productRecord);
+          }
+
+          alert(`Successfully imported ${importedProducts.length} products!`);
+          window.location.reload();
+        } catch (err) {
+          alert('Error parsing Excel file: ' + err.message);
         }
-
-        if (importedProducts.length === 0) return alert('No valid products found in CSV.');
-
-        const { dbOps, STORES } = await import('../db/db');
-        const { queueSyncAction } = await import('../db/sync');
-
-        for (const p of importedProducts) {
-          const productRecord = {
-            ...p,
-            shop_id: currentUser.shop_id,
-            performed_by_user_id: currentUser.id,
-            performed_by_name: currentUser.name,
-            performed_by_role: currentUser.role,
-            updated_at: new Date().toISOString()
-          };
-          await dbOps.put(STORES.PRODUCTS, productRecord);
-          await queueSyncAction(STORES.PRODUCTS, p.id, 'INSERT', productRecord);
-        }
-
-        alert(`Successfully imported ${importedProducts.length} products!`);
-        window.location.reload();
-      } catch (err) {
-        alert('Error parsing CSV file: ' + err.message);
-      }
-    };
-    reader.readAsText(file);
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (err) {
+      alert('Error loading sheet parser: ' + err.message);
+    }
   };
 
   return (
@@ -241,16 +235,16 @@ export default function Inventory() {
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <input 
               type="file" 
-              id="csv-file-input" 
-              accept=".csv" 
+              id="excel-file-input" 
+              accept=".xlsx, .xls" 
               style={{ display: 'none' }} 
-              onChange={handleImportCSV} 
+              onChange={handleImportExcel} 
             />
-            <button className="btn btn-outline" onClick={() => document.getElementById('csv-file-input').click()}>
-              📤 Import CSV
+            <button className="btn btn-outline" onClick={() => document.getElementById('excel-file-input').click()}>
+              📤 Import Excel
             </button>
-            <button className="btn btn-outline" onClick={handleExportCSV}>
-              📥 Export CSV
+            <button className="btn btn-outline" onClick={handleExportExcel}>
+              📥 Export Excel
             </button>
             <button className="btn btn-primary" onClick={openAddModal}>
               📦 Add New Product

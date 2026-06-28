@@ -18,6 +18,7 @@ export default function Suppliers() {
   const [txType, setTxType] = useState('Purchase'); // 'Purchase' | 'Payment'
   const [txAmount, setTxAmount] = useState('');
   const [txDesc, setTxDesc] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
 
   const isOwner = currentUser?.role === 'Owner';
 
@@ -64,11 +65,12 @@ export default function Suppliers() {
     const amt = parseFloat(txAmount);
     if (isNaN(amt) || amt <= 0) return alert('Enter a valid amount.');
 
-    await logSupplierTransaction(selectedSupplier.id, txType, amt, txDesc);
+    await logSupplierTransaction(selectedSupplier.id, txType, amt, txDesc, paymentMethod);
     
     setShowTxModal(false);
     setTxAmount('');
     setTxDesc('');
+    setPaymentMethod('Cash');
 
     // Re-load supplier details
     const updated = await dbOps.get(STORES.SUPPLIERS, selectedSupplier.id);
@@ -304,7 +306,19 @@ export default function Suppliers() {
                     autoFocus
                   />
                 </div>
-                
+                <div className="form-group">
+                  <label className="form-label">Payment Method</label>
+                  <select
+                    className="select"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="Cash">💵 Cash</option>
+                    <option value="UPI">📱 UPI</option>
+                    <option value="Card">💳 Card</option>
+                  </select>
+                </div>
                 <div className="form-group">
                   <label className="form-label">Description / Bill Number</label>
                   <input

@@ -638,7 +638,7 @@ export const AppProvider = ({ children }) => {
     return custRecord;
   };
 
-  const logCustomerPayment = async (customerId, amount, description) => {
+  const logCustomerPayment = async (customerId, amount, description, paymentMethod = 'Cash') => {
     if (!isSubscriptionActive()) return alert('Subscription expired!');
     const customer = await dbOps.get(STORES.CUSTOMERS, customerId);
     if (!customer) return;
@@ -653,7 +653,8 @@ export const AppProvider = ({ children }) => {
       customer_id: customerId,
       type: 'Payment',
       amount: parseFloat(amount),
-      description: description || 'Cash Payment Received',
+      payment_method: paymentMethod,
+      description: description || `${paymentMethod} Payment Received`,
       created_at: new Date().toISOString(),
       ...getAuditMetadata()
     };
@@ -696,7 +697,7 @@ export const AppProvider = ({ children }) => {
     await loadDataFromIndexedDB();
   };
 
-  const logSupplierTransaction = async (supplierId, type, amount, description) => {
+  const logSupplierTransaction = async (supplierId, type, amount, description, paymentMethod = 'Cash') => {
     if (!isSubscriptionActive()) return alert('Subscription expired!');
     const supplier = await dbOps.get(STORES.SUPPLIERS, supplierId);
     if (!supplier) return;
@@ -716,7 +717,8 @@ export const AppProvider = ({ children }) => {
       supplier_id: supplierId,
       type,
       amount: parseFloat(amount),
-      description: description || (type === 'Purchase' ? 'Inventory Purchase' : 'Payment Disbursed'),
+      payment_method: paymentMethod,
+      description: description || (type === 'Purchase' ? 'Inventory Purchase' : `${paymentMethod} Payment Disbursed`),
       created_at: new Date().toISOString(),
       ...getAuditMetadata()
     };

@@ -16,6 +16,7 @@ export default function DailyClosing() {
   const [cashSales, setCashSales] = useState(0);
   const [udharReceived, setUdharReceived] = useState(0);
   const [expenseTotal, setExpenseTotal] = useState(0);
+  const [supplierPaymentsPaid, setSupplierPaymentsPaid] = useState(0);
 
   // Fetch customer payments on selected date
   const loadStatsForDate = async () => {
@@ -38,14 +39,18 @@ export default function DailyClosing() {
       const sumExpenses = dayExpenses.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
       setExpenseTotal(sumExpenses);
 
-      // 3. Udhar Payments received
-      // In context, customer transactions have type = 'Payment' and created_at date
-      // Let's load customer transactions from IndexedDB
+      // 3. Udhar Payments received (Only Cash payments)
       const { dbOps, STORES } = await import('../db/db');
       const txs = await dbOps.getAll(STORES.CUSTOMER_TRANSACTIONS);
-      const dayPayments = txs.filter(t => t.created_at.startsWith(closingDate) && t.type === 'Payment');
-      const sumPayments = dayPayments.reduce((acc, curr) => acc + parseFloat(curr.amount), 0);
+      const dayPayments = txs.filter(t => t.created_at.startsWith(closingDate) && t.type === 'Payment' && (t.payment_method === 'Cash' || !t.payment_method));
+      const sumPayments = dayPayments.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
       setUdharReceived(sumPayments);
+
+      // 4. Supplier Payments disbursed in Cash
+      const supplierTxs = await dbOps.getAll(STORES.SUPPLIER_TRANSACTIONS);
+      const daySupplierPayments = supplierTxs.filter(t => t.created_at.startsWith(closingDate) && t.type === 'Payment' && (t.payment_method === 'Cash' || !t.payment_method));
+      const sumSupplierPayments = daySupplierPayments.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
+      setSupplierPaymentsPaid(sumSupplierPayments);
 
     } catch (e) {
       console.error('Error compiling daily closing stats:', e);
@@ -59,12 +64,12 @@ export default function DailyClosing() {
   // Recalculate difference whenever cash fields or cash components changes
   useEffect(() => {
     const open = parseFloat(openingCash) || 0;
-    const calc = open + cashSales + udharReceived - expenseTotal;
+    const calc = open + cashSales + udharReceived - expenseTotal - supplierPaymentsPaid;
     setCalculatedCash(calc);
 
     const physical = parseFloat(physicalCash) || 0;
     setDifference(physical - calc);
-  }, [openingCash, physicalCash, cashSales, udharReceived, expenseTotal]);
+  }, [openingCash, physicalCash, cashSales, udharReceived, expenseTotal, supplierPaymentsPaid]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -181,6 +186,11 @@ export default function DailyClosing() {
             <div className="flex-row-between">
               <span className="text-secondary-label">➖ Expenses Logged:</span>
               <span style={{ color: 'var(--accent-error)', fontWeight: 600 }}>-{formatINR(expenseTotal)}</span>
+            </div>
+
+            <div className="flex-row-between">
+              <span className="text-secondary-label">➖ Suppliers Paid:</span>
+              <span style={{ color: 'var(--accent-error)', fontWeight: 600 }}>-{formatINR(supplierPaymentsPaid)}</span>
             </div>
 
             <hr style={{ borderColor: 'var(--border-color)' }} />

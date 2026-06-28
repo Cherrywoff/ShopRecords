@@ -26,6 +26,7 @@ export default function Udhar() {
   // Payment log Form
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDesc, setPaymentDesc] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Search Filter
@@ -150,12 +151,13 @@ export default function Udhar() {
       if (!window.confirm('The amount entered is greater than the outstanding balance. Proceed?')) return;
     }
 
-    const tx = await logCustomerPayment(selectedCustomer.id, amt, paymentDesc || 'Udhar Payment Recv');
+    const tx = await logCustomerPayment(selectedCustomer.id, amt, paymentDesc || 'Udhar Payment Recv', paymentMethod);
     
     // Close payment modal and refresh states
     setShowPaymentModal(false);
     setPaymentAmount('');
     setPaymentDesc('');
+    setPaymentMethod('Cash');
 
     // Re-load customer details
     const updatedCustomer = await dbOps.get(STORES.CUSTOMERS, selectedCustomer.id);
@@ -419,6 +421,19 @@ export default function Udhar() {
                     required
                     autoFocus
                   />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Payment Method</label>
+                  <select
+                    className="select"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="Cash">💵 Cash</option>
+                    <option value="UPI">📱 UPI</option>
+                    <option value="Card">💳 Card</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Description / Remarks</label>
