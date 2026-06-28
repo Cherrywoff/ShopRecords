@@ -317,7 +317,12 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Table design */
 .table-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: block;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: var(--bg-secondary);
