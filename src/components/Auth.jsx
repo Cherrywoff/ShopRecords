@@ -8,17 +8,19 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [shopName, setShopName] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) return alert('Fill in all fields');
-    if (isSignUp && (!name || !shopName)) return alert('Fill in all fields');
+    if (isSignUp && !name) return alert('Name is required');
+    if (isSignUp && !isAdmin && !shopName) return alert('Shop Name is required');
 
     setLoading(true);
     try {
       if (isSignUp) {
-        await handleSignUp(email, password, name, shopName);
+        await handleSignUp(email, password, name, shopName, isAdmin);
       } else {
         await handleLogin(email, password);
       }
@@ -74,17 +76,32 @@ export default function Auth() {
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Shop Name</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.25rem 0' }}>
                 <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. Ramesh Kirana Store"
-                  value={shopName}
-                  onChange={(e) => setShopName(e.target.value)}
-                  required
+                  type="checkbox"
+                  id="isAdminCheck"
+                  checked={isAdmin}
+                  onChange={(e) => setIsAdmin(e.target.checked)}
+                  style={{ width: '18px', height: '18px' }}
                 />
+                <label htmlFor="isAdminCheck" className="form-label" style={{ marginBottom: 0 }}>
+                  Register as System Administrator
+                </label>
               </div>
+
+              {!isAdmin && (
+                <div className="form-group">
+                  <label className="form-label">Shop Name</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Ramesh Kirana Store"
+                    value={shopName}
+                    onChange={(e) => setShopName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
             </>
           )}
 

@@ -568,44 +568,46 @@ export const AppProvider = ({ children }) => {
   };
 
   // --- AUTH SERVICES ---
-  const handleSignUp = async (email, password, name, shopName) => {
+  const handleSignUp = async (email, password, name, shopName, isAdmin = false) => {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         
         if (data.user) {
-          // 1. Create a Shop
-          const shopId = generateUUID();
-          const newShop = {
-            id: shopId,
-            name: shopName,
-            plan: 'Basic',
-            expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 Days Trial
-            employee_limit: 2,
-            device_limit: 1,
-            created_at: new Date().toISOString()
-          };
+          let shopId = null;
+          let newShop = null;
+
+          if (!isAdmin) {
+            // 1. Create a Shop
+            shopId = generateUUID();
+            newShop = {
+              id: shopId,
+              name: shopName,
+              plan: 'Basic',
+              expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 Days Trial
+              employee_limit: 2,
+              device_limit: 1,
+              created_at: new Date().toISOString()
+            };
+            await supabase.from('shops').insert(newShop);
+            await dbOps.put(STORES.SHOPS, newShop);
+          }
 
           // 2. Create Profile
           const newProfile = {
             id: data.user.id,
             shop_id: shopId,
-            role: 'Owner',
+            role: isAdmin ? 'Admin' : 'Owner',
             name: name,
             status: 'Active',
             created_at: new Date().toISOString()
           };
 
-          // Push to Supabase immediately (since user signing up is online)
-          await supabase.from('shops').insert(newShop);
           await supabase.from('profiles').insert(newProfile);
-
-          // Save locally
-          await dbOps.put(STORES.SHOPS, newShop);
           await dbOps.put(STORES.PROFILES, newProfile);
           
-          alert('Registration successful! Please check your email to verify.');
+          alert('Registration successful! Please confirm your login details.');
           return true;
         }
       } catch (err) {
@@ -614,41 +616,44 @@ export const AppProvider = ({ children }) => {
       }
     } else {
       // Offline Signup Sandbox Mode
-      const shopId = generateUUID();
+      const shopId = isAdmin ? null : generateUUID();
       const userId = generateUUID();
-      const localShop = {
-        id: shopId,
-        name: shopName,
-        plan: 'Premium',
-        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-        employee_limit: 5,
-        device_limit: 3,
-        created_at: new Date().toISOString()
-      };
+      let localShop = null;
+      if (!isAdmin) {
+        localShop = {
+          id: shopId,
+          name: shopName,
+          plan: 'Premium',
+          expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          employee_limit: 5,
+          device_limit: 3,
+          created_at: new Date().toISOString()
+        };
+        await dbOps.put(STORES.SHOPS, localShop);
+      }
       const localProfile = {
         id: userId,
         shop_id: shopId,
-        role: 'Owner',
+        role: isAdmin ? 'Admin' : 'Owner',
         name,
         email,
         status: 'Active',
         created_at: new Date().toISOString()
       };
-      await dbOps.put(STORES.SHOPS, localShop);
       await dbOps.put(STORES.PROFILES, localProfile);
       await dbOps.put(STORES.OFFLINE_AUTH_CACHE, {
         id: userId,
         email,
         name,
-        role: 'Owner',
+        role: isAdmin ? 'Admin' : 'Owner',
         shop_id: shopId,
-        shopName
+        shopName: shopName || 'Admin Sandbox'
       });
-      alert('Supabase offline sandbox created successfully!');
+      alert('Offline signup successful!');
       
-      const loggedUser = { id: userId, name, email, role: 'Owner', shop_id: shopId };
+      const loggedUser = { id: userId, name, email, role: isAdmin ? 'Admin' : 'Owner', shop_id: shopId };
       setCurrentUser(loggedUser);
-      setCurrentShop(localShop);
+      if (localShop) setCurrentShop(localShop);
       localStorage.setItem('offline_session', JSON.stringify(loggedUser));
       return true;
     }
