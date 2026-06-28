@@ -11,7 +11,9 @@ export default function Settings() {
     importBackup, 
     currentShop, 
     currentUser,
-    isSubscriptionActive
+    isSubscriptionActive,
+    retryQuarantinedItems,
+    quarantineQueue
   } = useApp();
 
   const [importMode, setImportMode] = useState('merge');
@@ -162,6 +164,25 @@ export default function Settings() {
                 onChange={handleImportSubmit}
               />
             </div>
+          </div>
+
+          {/* Sync Troubleshooter */}
+          <div className="card flex-column-gap">
+            <h3 style={{ fontSize: '1.15rem' }}>Sync Troubleshooter</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              If you had missing tables on Supabase and just created them, click below to replay all failed transactions.
+            </p>
+
+            <button 
+              className="btn btn-outline" 
+              onClick={async () => {
+                const count = await retryQuarantinedItems();
+                alert(`Re-queued ${count} failed sync operations. Check the dashboard sync bar!`);
+              }}
+              style={{ width: '100%' }}
+            >
+              🔄 Retry failed transactions ({quarantineQueue?.length || 0} errors)
+            </button>
           </div>
 
         </div>

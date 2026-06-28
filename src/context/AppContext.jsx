@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { dbOps, STORES, generateUUID } from '../db/db';
-import { queueSyncAction, startSyncEngine } from '../db/sync';
+import { queueSyncAction, startSyncEngine, retryQuarantinedItems } from '../db/sync';
 import { supabase, isSupabaseConfigured } from '../supabase';
 
 const AppContext = createContext(null);
@@ -177,9 +177,18 @@ export const AppProvider = ({ children }) => {
       // Helper to pull a table
       const pullTable = async (tableName, storeName) => {
         try {
-          let query = supabase.from(tableName).select('*');
-          if (!isSystemAdmin && tableName !== 'shops') {
-            query = query.eq('shop_id', myShopId);
+          let query;
+          if (tableName === 'sale_items') {
+            // Join with sales to filter by shop_id since sale_items has no direct shop_id column
+            query = supabase
+              .from('sale_items')
+              .select('*, sales!inner(shop_id)')
+              .eq('sales.shop_id', myShopId);
+          } else {
+            query = supabase.from(tableName).select('*');
+            if (!isSystemAdmin && tableName !== 'shops') {
+              query = query.eq('shop_id', myShopId);
+            }
           }
           const { data, error } = await query;
           if (error) {
@@ -187,11 +196,17 @@ export const AppProvider = ({ children }) => {
             return;
           }
           if (data) {
-            for (const row of data) {
+            for (let row of data) {
               try {
-                const local = await dbOps.get(storeName, row.id);
+                let cleanRow = row;
+                if (tableName === 'sale_items' && row.sales) {
+                  // Strip the nested sales object so we store a clean sale_item record locally
+                  const { sales, ...rest } = row;
+                  cleanRow = rest;
+                }
+                const local = await dbOps.get(storeName, cleanRow.id);
                 if (!local || local.sync_status !== 'pending') {
-                  await dbOps.put(storeName, row);
+                  await dbOps.put(storeName, cleanRow);
                 }
               } catch (dbErr) {
                 console.error(`Database write error on table ${tableName}, id ${row.id}:`, dbErr);
@@ -1127,7 +1142,8 @@ export const AppProvider = ({ children }) => {
         stopSupportSession,
         exportBackup,
         importBackup,
-        isSubscriptionActive
+        isSubscriptionActive,
+        retryQuarantinedItems
       }}
     >
       {children}

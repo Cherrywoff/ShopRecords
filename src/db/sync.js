@@ -258,3 +258,22 @@ async function processQueueItem(item) {
     }
   }
 }
+
+export async function retryQuarantinedItems() {
+  try {
+    const quarantined = await dbOps.getAll(STORES.QUARANTINE_QUEUE);
+    if (quarantined.length === 0) return 0;
+    
+    for (const item of quarantined) {
+      const { error, quarantined_at, id, ...cleanItem } = item;
+      await dbOps.put(STORES.SYNC_QUEUE, cleanItem);
+      await dbOps.delete(STORES.QUARANTINE_QUEUE, item.id);
+    }
+    
+    triggerSync();
+    return quarantined.length;
+  } catch (e) {
+    console.error('Failed to retry quarantined items:', e);
+    return 0;
+  }
+}
