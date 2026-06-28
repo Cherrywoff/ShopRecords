@@ -2,7 +2,7 @@
 // APPLICATION STATE MANAGER & CONTEXT PROVIDER
 // ==========================================
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { dbOps, STORES, generateUUID } from '../db/db';
 import { queueSyncAction, startSyncEngine } from '../db/sync';
 import { supabase, isSupabaseConfigured } from '../supabase';
