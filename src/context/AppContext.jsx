@@ -289,14 +289,14 @@ export const AppProvider = ({ children }) => {
     }
   }, [isOnline]);
 
-  // Background sync auto-refresh interval (5 seconds fallback)
+  // Background sync auto-refresh interval (2 seconds fallback)
   useEffect(() => {
-    if (!currentUser || !isOnline) return;
+    if (!currentUser) return;
     const interval = setInterval(() => {
       pullAllTablesFromCloud();
-    }, 5000);
+    }, 2000);
     return () => clearInterval(interval);
-  }, [currentUser, isOnline]);
+  }, [currentUser]);
 
   // Setup Supabase Realtime Channels
   useEffect(() => {

@@ -42,19 +42,17 @@ export function startSyncEngine(onSyncStatusChange) {
     }
   });
 
+  // Periodically check/push sync queue every 3 seconds (resilient auto-sync fallback)
+  setInterval(() => {
+    triggerSync();
+  }, 3000);
+
   // Initial scan
   triggerSync();
 }
 
-// Trigger a sync pass immediately if online
+// Trigger a sync pass immediately
 export function triggerSync() {
-  if (!navigator.onLine) {
-    if (statusCallback) {
-      statusCallback({ status: 'offline', message: 'Offline mode. Changes saved locally.' });
-    }
-    return;
-  }
-  
   runSyncLoop();
 }
 
@@ -72,6 +70,17 @@ export async function queueSyncAction(tableName, recordId, action, recordData = 
   if (syncData) {
     const { sync_status, last_sync_error, ...cleanData } = syncData;
     syncData = cleanData;
+
+    // Remove updated_at for tables that do not have this column in Supabase
+    const noUpdatedAtTables = [
+      STORES.CUSTOMER_TRANSACTIONS,
+      STORES.SUPPLIER_TRANSACTIONS,
+      STORES.SALE_ITEMS,
+      STORES.DAILY_CLOSINGS
+    ];
+    if (noUpdatedAtTables.includes(tableName)) {
+      delete syncData.updated_at;
+    }
   }
 
   const queueItem = {
@@ -108,7 +117,7 @@ async function runSyncLoop() {
   }
 
   try {
-    while (navigator.onLine) {
+    while (true) {
       const queue = await dbOps.getAll(STORES.SYNC_QUEUE);
       if (queue.length === 0) {
         backoffIndex = 0;
