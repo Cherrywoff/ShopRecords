@@ -30,3 +30,16 @@ CREATE TABLE IF NOT EXISTS public.customer_transactions (
 
 -- Disable Row Level Security on it
 ALTER TABLE public.customer_transactions DISABLE ROW LEVEL SECURITY;
+
+-- 4. Enable Supabase Realtime Replication for Instant Device Syncing
+ALTER PUBLICATION supabase_realtime ADD TABLE public.shops;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.customers;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.sales;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.sale_items;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.expenses;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.suppliers;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.supplier_transactions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_transactions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_closings;

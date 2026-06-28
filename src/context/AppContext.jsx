@@ -274,12 +274,12 @@ export const AppProvider = ({ children }) => {
     }
   }, [isOnline]);
 
-  // Background sync auto-refresh interval (30 seconds)
+  // Background sync auto-refresh interval (5 seconds fallback)
   useEffect(() => {
     if (!currentUser || !isOnline) return;
     const interval = setInterval(() => {
       pullAllTablesFromCloud();
-    }, 30000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [currentUser, isOnline]);
 
