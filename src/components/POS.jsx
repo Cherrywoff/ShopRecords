@@ -15,7 +15,8 @@ export default function POS() {
     clearCart, 
     checkout,
     saveProduct,
-    currentUser
+    currentUser,
+    currentShop
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -159,14 +160,31 @@ export default function POS() {
     }
   };
 
-  // Auto print receipt trigger
-  useEffect(() => {
-    if (activeReceipt) {
-      setTimeout(() => {
-        window.print();
-      }, 500);
+  const handleShareBill = () => {
+    if (!activeReceipt) return;
+
+    const summaryText = `🛒 *ShopRecords Invoice* \n` +
+      `-------------------------\n` +
+      `Store: ${currentShop?.name || 'ShopRecords'}\n` +
+      `Invoice: ${activeReceipt.invoice_number}\n` +
+      `Date: ${new Date(activeReceipt.created_at).toLocaleString('en-IN')}\n` +
+      `-------------------------\n` +
+      `Total Amount: ₹${parseFloat(activeReceipt.total_amount).toFixed(2)}\n` +
+      `Payment Mode: ${activeReceipt.payment_method}\n` +
+      `Thank you for shopping with us!`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: `Invoice ${activeReceipt.invoice_number}`,
+        text: summaryText
+      }).catch(err => {
+        console.log('Share failed:', err);
+      });
+    } else {
+      navigator.clipboard.writeText(summaryText);
+      alert('Invoice summary copied to clipboard! You can now paste and share it via WhatsApp, SMS, or Email.');
     }
-  }, [activeReceipt]);
+  };
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -887,21 +905,30 @@ export default function POS() {
               </div>
             </div>
 
-            <div className="modal-footer" style={{ gap: '0.75rem' }}>
+            <div className="modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
               <button 
-                className="btn btn-outline" 
+                className="btn btn-primary" 
                 onClick={() => window.print()}
-                style={{ flexGrow: 1 }}
+                style={{ width: '100%', minHeight: '40px', fontWeight: 'bold' }}
               >
                 🖨️ Print Bill
               </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => setActiveReceipt(null)}
-                style={{ flexGrow: 1 }}
-              >
-                🛒 New Sale
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                <button 
+                  className="btn btn-outline" 
+                  onClick={handleShareBill}
+                  style={{ flexGrow: 1, minHeight: '40px' }}
+                >
+                  🔗 Share Bill
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setActiveReceipt(null)}
+                  style={{ flexGrow: 1, minHeight: '40px' }}
+                >
+                  ✕ Close Bill
+                </button>
+              </div>
             </div>
           </div>
         </div>
