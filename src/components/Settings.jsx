@@ -107,7 +107,7 @@ export default function Settings() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div className="responsive-grid-2">
         
         {/* Left Column: UI Preference & Backups */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

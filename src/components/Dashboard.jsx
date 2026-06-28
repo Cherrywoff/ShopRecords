@@ -173,11 +173,11 @@ export default function Dashboard({ setCurrentTab }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '1.5rem' }}>
+      <div className="responsive-grid-2">
         {/* Sales by Mode Breakdown */}
         <div className="card flex-column-gap" style={{ justifyContent: 'center' }}>
           <h3 style={{ fontSize: '1.1rem' }}>Today's Sales Breakdown</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
             <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
               <span className="text-secondary-label">💵 Cash Sales</span>
               <h4 style={{ fontSize: '1.15rem', marginTop: '0.25rem' }}>{formatINR(salesByMethod.Cash)}</h4>

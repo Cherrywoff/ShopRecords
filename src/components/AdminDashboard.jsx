@@ -228,7 +228,7 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">Subscription Plan</label>
                     <select className="input" value={plan} onChange={(e) => setPlan(e.target.value)}>
@@ -248,7 +248,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">Employee limit</label>
                     <input
@@ -339,7 +339,7 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">Employee Limit</label>
                     <input

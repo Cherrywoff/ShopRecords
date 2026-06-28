@@ -568,7 +568,7 @@ export default function POS() {
         {/* Payment Methods */}
         <div className="form-group">
           <label className="form-label">Payment Method</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(85px, 1fr))', gap: '0.5rem' }}>
             {['Cash', 'UPI', 'Card', 'Udhar', 'Split'].map((method) => {
               if (method === 'Udhar' && currentUser?.role === 'Cashier') return null;
               
