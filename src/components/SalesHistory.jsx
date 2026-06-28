@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 export default function SalesHistory() {
-  const { sales, saleItems, refundSale, currentUser } = useApp();
+  const { sales, saleItems, refundSale, currentUser, currentShop } = useApp();
   
   // Filters
   const [invoiceQuery, setInvoiceQuery] = useState('');
@@ -39,6 +39,29 @@ export default function SalesHistory() {
       await refundSale(saleId);
       // Close details if opened
       setSelectedInvoice(null);
+    }
+  };
+
+  const handleShareBill = () => {
+    if (!selectedInvoice) return;
+    const summaryText = `🛒 *ShopRecords Invoice* \n` +
+      `-------------------------\n` +
+      `Store: ${currentShop?.name || 'ShopRecords'}\n` +
+      `Invoice: ${selectedInvoice.invoice_number}\n` +
+      `Date: ${new Date(selectedInvoice.created_at).toLocaleString('en-IN')}\n` +
+      `-------------------------\n` +
+      `Total Amount: ₹${parseFloat(selectedInvoice.total_amount).toFixed(2)}\n` +
+      `Payment Mode: ${selectedInvoice.payment_method}\n` +
+      `Thank you for shopping with us!`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: `Invoice ${selectedInvoice.invoice_number}`,
+        text: summaryText
+      }).catch(err => console.log('Share failed:', err));
+    } else {
+      navigator.clipboard.writeText(summaryText);
+      alert('Invoice summary copied to clipboard! You can now paste and share it.');
     }
   };
 
@@ -230,19 +253,148 @@ export default function SalesHistory() {
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
               {!isCashier && selectedInvoice.status === 'Completed' && (
                 <button className="btn btn-danger" onClick={() => handleRefundClick(selectedInvoice.id)}>
-                  ↩️ Process Refund
+                  ↩️ Refund Bill
                 </button>
               )}
-              <button className="btn btn-outline" onClick={() => window.print()}>
-                🖨️ Reprint Receipt
+              <button className="btn btn-primary" onClick={() => window.print()}>
+                🖨️ Print Bill
               </button>
-              <button className="btn btn-primary" onClick={() => setSelectedInvoice(null)}>
-                Close
+              <button className="btn btn-outline" onClick={handleShareBill}>
+                🔗 Share Bill
+              </button>
+              <button className="btn btn-secondary" onClick={() => setSelectedInvoice(null)}>
+                ✕ Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reprint Receipt print template (hidden from screen, displayed in print layout) */}
+      {selectedInvoice && (
+        <div className="print-receipt-section">
+          <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
+            <h3 style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentShop?.name || 'ShopRecords Store'}</h3>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Retail GST Invoice</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Invoice: {selectedInvoice.invoice_number}</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Date: {new Date(selectedInvoice.created_at).toLocaleString('en-IN')}</p>
+            <p style={{ margin: '1px 0', fontSize: '9px', fontWeight: 'bold' }}>Billed By: {selectedInvoice.performed_by_name || 'Staff'}</p>
+          </div>
+          
+          <hr style={{ borderTop: '1px dashed #000', margin: '1mm 0' }} />
+          
+          <div style={{ fontSize: '9px', marginBottom: '2mm' }}>
+            <strong>Bill To:</strong> {selectedInvoice.customer_name}<br />
+            {selectedInvoice.customer_phone && <><strong>Phone:</strong> {selectedInvoice.customer_phone}</>}
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px dashed #000' }}>
+                <th style={{ textAlign: 'left', paddingBottom: '1px' }}>Description (HSN)</th>
+                <th style={{ textAlign: 'center', paddingBottom: '1px' }}>Qty</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>Rate</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>GST%</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedInvoice.items?.map((item) => {
+                const qty = parseFloat(item.quantity || 0);
+                const rate = parseFloat(item.price || 0);
+                const gstRate = parseFloat(item.gst_rate || 0);
+                const total = rate * qty;
+                return (
+                  <tr key={item.id} style={{ borderBottom: '0.5px dotted #ccc' }}>
+                    <td style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+                      {item.product_name}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{qty}</td>
+                    <td style={{ textAlign: 'right' }}>₹{rate.toFixed(2)}</td>
+                    <td style={{ textAlign: 'right' }}>{gstRate}%</td>
+                    <td style={{ textAlign: 'right' }}>₹{total.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+
+          <div style={{ fontSize: '9px', lineHeight: '1.4' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Subtotal (Inclusive of GST):</span>
+              <span>₹{(selectedInvoice.total_amount + selectedInvoice.discount_amount).toFixed(2)}</span>
+            </div>
+            {selectedInvoice.discount_amount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Discount:</span>
+                <span>-₹{parseFloat(selectedInvoice.discount_amount).toFixed(2)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '10px', marginTop: '1px' }}>
+              <span>Net Payable ({selectedInvoice.payment_method}):</span>
+              <span>₹{parseFloat(selectedInvoice.total_amount).toFixed(2)}</span>
+            </div>
+          </div>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+
+          {/* GST Breakdown Table */}
+          {selectedInvoice.gst_amount > 0 && (
+            <div style={{ fontSize: '8px' }}>
+              <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '1px' }}>GST TAX BREAKDOWN</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                <thead>
+                  <tr style={{ borderBottom: '0.5px dashed #000' }}>
+                    <th style={{ textAlign: 'left' }}>GST%</th>
+                    <th>Taxable Val</th>
+                    <th>CGST</th>
+                    <th>SGST</th>
+                    <th>Total Tax</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const taxGroups = {};
+                    selectedInvoice.items?.forEach(item => {
+                      const rate = parseFloat(item.gst_rate || 0);
+                      if (rate > 0) {
+                        const totalItemPrice = (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 0);
+                        const basePrice = totalItemPrice / (1 + (rate / 100));
+                        const tax = totalItemPrice - basePrice;
+                        if (!taxGroups[rate]) {
+                          taxGroups[rate] = { taxable: 0, tax: 0 };
+                        }
+                        taxGroups[rate].taxable += basePrice;
+                        taxGroups[rate].tax += tax;
+                      }
+                    });
+
+                    return Object.entries(taxGroups).map(([rate, vals]) => {
+                      const cgst = vals.tax / 2;
+                      const sgst = vals.tax / 2;
+                      return (
+                        <tr key={rate}>
+                          <td style={{ textAlign: 'left' }}>{rate}%</td>
+                          <td>₹{vals.taxable.toFixed(2)}</td>
+                          <td>₹{cgst.toFixed(2)}</td>
+                          <td>₹{sgst.toFixed(2)}</td>
+                          <td>₹{vals.tax.toFixed(2)}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
+          
+          <div style={{ textAlign: 'center', marginTop: '4mm', fontSize: '9px', fontWeight: 'bold' }}>
+            *** DUPLICATE COPY / REPRINT ***
           </div>
         </div>
       )}

@@ -34,6 +34,79 @@ export default function Udhar() {
     (c.phone && c.phone.includes(searchTerm))
   );
 
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  const handleShareLedger = () => {
+    if (!selectedCustomer) return;
+    
+    let summaryText = `📋 *Credit Ledger: ${selectedCustomer.name}*\n` +
+      `-------------------------\n` +
+      `Outstanding Balance: ₹${parseFloat(selectedCustomer.outstanding_balance || 0).toFixed(2)}\n` +
+      `Phone: ${selectedCustomer.phone || 'N/A'}\n` +
+      `-------------------------\n` +
+      `Recent Logs:\n`;
+      
+    customerTxList.slice(0, 10).forEach(tx => {
+      const dateStr = new Date(tx.created_at).toLocaleDateString('en-IN');
+      const typeStr = tx.type === 'Udhar' ? 'Credit' : 'Payment';
+      summaryText += `• ${dateStr} | ${typeStr} | ₹${parseFloat(tx.amount).toFixed(2)} | ${tx.description}\n`;
+    });
+    
+    summaryText += `-------------------------\n` +
+      `ShopRecords POS`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: `Ledger: ${selectedCustomer.name}`,
+        text: summaryText
+      }).catch(err => console.log(err));
+    } else {
+      navigator.clipboard.writeText(summaryText);
+      alert('Ledger history summary copied to clipboard!');
+    }
+  };
+
+  const handleShareSingleTx = (tx) => {
+    if (!selectedCustomer) return;
+    const dateStr = new Date(tx.created_at).toLocaleDateString('en-IN');
+    const typeStr = tx.type === 'Udhar' ? 'Credit' : 'Payment';
+    const summaryText = `🛒 *Transaction Log Detail*\n` +
+      `-------------------------\n` +
+      `Customer: ${selectedCustomer.name}\n` +
+      `Date: ${dateStr}\n` +
+      `Type: ${typeStr}\n` +
+      `Amount: ₹${parseFloat(tx.amount).toFixed(2)}\n` +
+      `Detail: ${tx.description}\n` +
+      `-------------------------\n` +
+      `ShopRecords POS`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: `Transaction: ${selectedCustomer.name}`,
+        text: summaryText
+      }).catch(err => console.log(err));
+    } else {
+      navigator.clipboard.writeText(summaryText);
+      alert('Transaction detail copied to clipboard!');
+    }
+  };
+
+  const handleViewInvoice = async (saleId) => {
+    try {
+      const sale = await dbOps.get(STORES.SALES, saleId);
+      if (!sale) return alert('Invoice record not found.');
+      const allItems = await dbOps.getAll(STORES.SALE_ITEMS);
+      const items = allItems.filter(i => i.sale_id === saleId);
+      setSelectedInvoice({
+        ...sale,
+        items
+      });
+    } catch (e) {
+      console.error(e);
+      alert('Failed to load invoice details.');
+    }
+  };
+
   // Load selected customer transaction history
   const loadCustomerTransactions = async (customerId) => {
     try {
@@ -236,9 +309,14 @@ export default function Udhar() {
                     ₹{parseFloat(selectedCustomer.outstanding_balance || 0).toFixed(2)}
                   </h2>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowPaymentModal(true)}>
-                  💳 Receive Payment
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="btn btn-outline" onClick={handleShareLedger}>
+                    🔗 Share Ledger
+                  </button>
+                  <button className="btn btn-primary" onClick={() => setShowPaymentModal(true)}>
+                    💳 Receive Payment
+                  </button>
+                </div>
               </div>
 
               {/* Transactions log list */}
@@ -272,15 +350,33 @@ export default function Udhar() {
                             <td>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span>{tx.description}</span>
-                                {tx.type === 'Payment' && (
+                                <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                                  {tx.sale_id && (
+                                    <button
+                                      className="btn btn-outline"
+                                      onClick={() => handleViewInvoice(tx.sale_id)}
+                                      style={{ minHeight: '24px', height: '24px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                                    >
+                                      📄 View Bill
+                                    </button>
+                                  )}
+                                  {tx.type === 'Payment' && (
+                                    <button
+                                      className="btn btn-outline"
+                                      onClick={() => setActivePaymentReceipt(tx)}
+                                      style={{ minHeight: '24px', height: '24px', padding: '0.1rem 0.4rem', fontSize: '0.7rem' }}
+                                    >
+                                      🖨️ Print
+                                    </button>
+                                  )}
                                   <button
                                     className="btn btn-outline"
-                                    onClick={() => setActivePaymentReceipt(tx)}
-                                    style={{ minHeight: '24px', height: '24px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}
+                                    onClick={() => handleShareSingleTx(tx)}
+                                    style={{ minHeight: '24px', height: '24px', padding: '0.1rem 0.4rem', fontSize: '0.7rem' }}
                                   >
-                                    🖨️ Print
+                                    🔗 Share
                                   </button>
-                                )}
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -373,6 +469,240 @@ export default function Udhar() {
         </div>
       )}
 
+      {/* 4. Invoice details popup modal (when clicking View Bill from Ledger) */}
+      {selectedInvoice && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3>Receipt Detail: {selectedInvoice.invoice_number}</h3>
+              <button onClick={() => setSelectedInvoice(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>×</button>
+            </div>
+            
+            <div className="modal-body flex-column-gap">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+                <div>
+                  <span className="text-secondary-label">Customer:</span>
+                  <p style={{ fontWeight: 700 }}>{selectedInvoice.customer_name}</p>
+                  {selectedInvoice.customer_phone && <p style={{ fontSize: '0.8rem' }}>Phone: {selectedInvoice.customer_phone}</p>}
+                </div>
+                <div>
+                  <span className="text-secondary-label">Invoice Meta:</span>
+                  <p style={{ fontSize: '0.85rem' }}><strong>Date:</strong> {new Date(selectedInvoice.created_at).toLocaleString()}</p>
+                  <p style={{ fontSize: '0.85rem' }}><strong>Billed By:</strong> {selectedInvoice.performed_by_name} ({selectedInvoice.performed_by_role})</p>
+                </div>
+              </div>
+
+              {/* Items checklist */}
+              <div className="flex-column-gap">
+                <h4 style={{ fontSize: '0.95rem' }}>Billed Items</h4>
+                <div className="table-container">
+                  <table className="table" style={{ fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedInvoice.items?.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.product_name}</td>
+                          <td>{parseFloat(item.quantity)}</td>
+                          <td>₹{parseFloat(item.price).toFixed(2)}</td>
+                          <td>₹{(parseFloat(item.price) * parseFloat(item.quantity)).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Totals panel */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: 'var(--bg-tertiary)', padding: '1rem', borderRadius: 'var(--radius-md)', alignSelf: 'flex-end', width: '220px' }}>
+                <div className="flex-row-between" style={{ fontSize: '0.85rem' }}>
+                  <span>Subtotal:</span>
+                  <span>₹{(selectedInvoice.total_amount + selectedInvoice.discount_amount).toFixed(2)}</span>
+                </div>
+                {selectedInvoice.discount_amount > 0 && (
+                  <div className="flex-row-between" style={{ fontSize: '0.85rem', color: 'var(--accent-error)' }}>
+                    <span>Discount:</span>
+                    <span>-₹{parseFloat(selectedInvoice.discount_amount).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex-row-between" style={{ fontSize: '0.85rem' }}>
+                  <span>GST Taxes:</span>
+                  <span>₹{parseFloat(selectedInvoice.gst_amount).toFixed(2)}</span>
+                </div>
+                <hr style={{ borderColor: 'var(--border-color)' }} />
+                <div className="flex-row-between" style={{ fontWeight: 700 }}>
+                  <span>Net:</span>
+                  <span style={{ color: 'var(--primary)' }}>₹{parseFloat(selectedInvoice.total_amount).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" onClick={() => window.print()}>
+                🖨️ Print Bill
+              </button>
+              <button className="btn btn-outline" onClick={() => {
+                const summaryText = `🛒 *ShopRecords Invoice* \n` +
+                  `-------------------------\n` +
+                  `Store: ${currentShop?.name || 'ShopRecords'}\n` +
+                  `Invoice: ${selectedInvoice.invoice_number}\n` +
+                  `Date: ${new Date(selectedInvoice.created_at).toLocaleString('en-IN')}\n` +
+                  `-------------------------\n` +
+                  `Total Amount: ₹${parseFloat(selectedInvoice.total_amount).toFixed(2)}\n` +
+                  `Payment Mode: ${selectedInvoice.payment_method}\n` +
+                  `Thank you for shopping with us!`;
+
+                if (navigator.share) {
+                  navigator.share({
+                    title: `Invoice ${selectedInvoice.invoice_number}`,
+                    text: summaryText
+                  }).catch(err => console.log(err));
+                } else {
+                  navigator.clipboard.writeText(summaryText);
+                  alert('Invoice summary copied to clipboard!');
+                }
+              }}>
+                🔗 Share Bill
+              </button>
+              <button className="btn btn-secondary" onClick={() => setSelectedInvoice(null)}>
+                ✕ Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reprint Receipt print template (hidden from screen, displayed in print layout) */}
+      {selectedInvoice && (
+        <div className="print-receipt-section">
+          <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
+            <h3 style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentShop?.name || 'ShopRecords Store'}</h3>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Retail GST Invoice</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Invoice: {selectedInvoice.invoice_number}</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Date: {new Date(selectedInvoice.created_at).toLocaleString('en-IN')}</p>
+            <p style={{ margin: '1px 0', fontSize: '9px', fontWeight: 'bold' }}>Billed By: {selectedInvoice.performed_by_name || 'Staff'}</p>
+          </div>
+          
+          <hr style={{ borderTop: '1px dashed #000', margin: '1mm 0' }} />
+          
+          <div style={{ fontSize: '9px', marginBottom: '2mm' }}>
+            <strong>Bill To:</strong> {selectedInvoice.customer_name}<br />
+            {selectedInvoice.customer_phone && <><strong>Phone:</strong> {selectedInvoice.customer_phone}</>}
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px dashed #000' }}>
+                <th style={{ textAlign: 'left', paddingBottom: '1px' }}>Description (HSN)</th>
+                <th style={{ textAlign: 'center', paddingBottom: '1px' }}>Qty</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>Rate</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>GST%</th>
+                <th style={{ textAlign: 'right', paddingBottom: '1px' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedInvoice.items?.map((item) => {
+                const qty = parseFloat(item.quantity || 0);
+                const rate = parseFloat(item.price || 0);
+                const gstRate = parseFloat(item.gst_rate || 0);
+                const total = rate * qty;
+                return (
+                  <tr key={item.id} style={{ borderBottom: '0.5px dotted #ccc' }}>
+                    <td style={{ paddingTop: '2px', paddingBottom: '2px' }}>
+                      {item.product_name}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{qty}</td>
+                    <td style={{ textAlign: 'right' }}>₹{rate.toFixed(2)}</td>
+                    <td style={{ textAlign: 'right' }}>{gstRate}%</td>
+                    <td style={{ textAlign: 'right' }}>₹{total.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+
+          <div style={{ fontSize: '9px', lineHeight: '1.4' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Subtotal (Inclusive of GST):</span>
+              <span>₹{(selectedInvoice.total_amount + selectedInvoice.discount_amount).toFixed(2)}</span>
+            </div>
+            {selectedInvoice.discount_amount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Discount:</span>
+                <span>-₹{parseFloat(selectedInvoice.discount_amount).toFixed(2)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '10px', marginTop: '1px' }}>
+              <span>Net Payable ({selectedInvoice.payment_method}):</span>
+              <span>₹{parseFloat(selectedInvoice.total_amount).toFixed(2)}</span>
+            </div>
+          </div>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+
+          {/* GST Breakdown Table */}
+          {selectedInvoice.gst_amount > 0 && (
+            <div style={{ fontSize: '8px' }}>
+              <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '1px' }}>GST TAX BREAKDOWN</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                <thead>
+                  <tr style={{ borderBottom: '0.5px dashed #000' }}>
+                    <th style={{ textAlign: 'left' }}>GST%</th>
+                    <th>Taxable Val</th>
+                    <th>CGST</th>
+                    <th>SGST</th>
+                    <th>Total Tax</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const taxGroups = {};
+                    selectedInvoice.items?.forEach(item => {
+                      const rate = parseFloat(item.gst_rate || 0);
+                      if (rate > 0) {
+                        const totalItemPrice = (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 0);
+                        const basePrice = totalItemPrice / (1 + (rate / 100));
+                        const tax = totalItemPrice - basePrice;
+                        if (!taxGroups[rate]) {
+                          taxGroups[rate] = { taxable: 0, tax: 0 };
+                        }
+                        taxGroups[rate].taxable += basePrice;
+                        taxGroups[rate].tax += tax;
+                      }
+                    });
+
+                    return Object.entries(taxGroups).map(([rate, vals]) => {
+                      const cgst = vals.tax / 2;
+                      const sgst = vals.tax / 2;
+                      return (
+                        <tr key={rate}>
+                          <td style={{ textAlign: 'left' }}>{rate}%</td>
+                          <td>₹{vals.taxable.toFixed(2)}</td>
+                          <td>₹{cgst.toFixed(2)}</td>
+                          <td>₹{sgst.toFixed(2)}</td>
+                          <td>₹{vals.tax.toFixed(2)}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
+          
+          <div style={{ textAlign: 'center', marginTop: '4mm', fontSize: '9px', fontWeight: 'bold' }}>
+            *** DUPLICATE COPY / REPRINT ***
+          </div>
+        </div>
+      )}
     </div>
   );
 }
