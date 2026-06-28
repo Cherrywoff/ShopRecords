@@ -20,14 +20,22 @@ export default function DailyClosing() {
   // Fetch customer payments on selected date
   const loadStatsForDate = async () => {
     try {
-      // 1. Cash Sales
-      const daySales = sales.filter(s => s.created_at.startsWith(closingDate) && s.payment_method === 'Cash' && s.status === 'Completed');
-      const sumSales = daySales.reduce((acc, curr) => acc + parseFloat(curr.total_amount), 0);
+      // 1. Cash Sales (including Cash components of Split payments)
+      const daySales = sales.filter(s => s.created_at.startsWith(closingDate) && s.status === 'Completed');
+      const sumSales = daySales.reduce((acc, curr) => {
+        if (curr.payment_method === 'Cash') {
+          return acc + parseFloat(curr.total_amount || 0);
+        } else if (curr.payment_method === 'Split' && curr.payment_details) {
+          const splitCashComponent = parseFloat(curr.payment_details.Cash || curr.payment_details.cash || 0);
+          return acc + splitCashComponent;
+        }
+        return acc;
+      }, 0);
       setCashSales(sumSales);
 
-      // 2. Expenses
-      const dayExpenses = expenses.filter(e => e.expense_date === closingDate);
-      const sumExpenses = dayExpenses.reduce((acc, curr) => acc + parseFloat(curr.amount), 0);
+      // 2. Expenses (Only count Cash expenses for Cash closing reconciliation)
+      const dayExpenses = expenses.filter(e => e.expense_date === closingDate && (e.payment_method === 'Cash' || !e.payment_method));
+      const sumExpenses = dayExpenses.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
       setExpenseTotal(sumExpenses);
 
       // 3. Udhar Payments received

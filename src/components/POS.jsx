@@ -160,6 +160,20 @@ export default function POS() {
     }
   };
 
+  const handleCartPriceChange = async (productId, priceVal) => {
+    updateCartPrice(productId, priceVal);
+    
+    // Save updated price in database if this is the Carry Bag
+    const product = products.find(p => p.id === productId);
+    if (product && (product.name === 'Carry Bag' || product.barcode === 'CARRYBAG')) {
+      const updatedProduct = {
+        ...product,
+        selling_price: parseFloat(priceVal) || 0
+      };
+      await saveProduct(updatedProduct);
+    }
+  };
+
   const handleShareBill = () => {
     if (!activeReceipt) return;
 
@@ -395,7 +409,7 @@ export default function POS() {
                       className="input"
                       style={{ width: '80px', minHeight: '36px', height: '36px', padding: '0.25rem', textAlign: 'right' }}
                       value={cartItem.customPrice}
-                      onChange={(e) => updateCartPrice(cartItem.product.id, e.target.value)}
+                      onChange={(e) => handleCartPriceChange(cartItem.product.id, e.target.value)}
                     />
                   </div>
 
@@ -412,7 +426,7 @@ export default function POS() {
 
           <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--bg-tertiary)', display: 'flex', gap: '1rem' }}>
             <button className="btn btn-outline" onClick={handleQuickAddCarryBag} style={{ flexGrow: 1 }}>
-              🛍️ + Carry Bag (₹5)
+              🛍️ + Carry Bag (₹{parseFloat(products.find(p => p.name === 'Carry Bag' || p.barcode === 'CARRYBAG')?.selling_price || 5).toFixed(2)})
             </button>
           </div>
         </div>

@@ -4,9 +4,10 @@
 -- https://supabase.com/dashboard/project/ekwygvppeqssjtrffotw/sql/new
 -- ===================================================
 
--- 1. Add GSTIN columns
+-- 1. Add GSTIN and Expense payment method columns
 ALTER TABLE public.shops ADD COLUMN IF NOT EXISTS gstin TEXT;
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS gstin TEXT;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Cash' CHECK (payment_method IN ('Cash', 'UPI', 'Card'));
 
 -- 2. Update payment_method check constraint and add split details
 ALTER TABLE public.sales DROP CONSTRAINT IF EXISTS sales_payment_method_check;

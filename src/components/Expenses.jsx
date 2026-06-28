@@ -10,6 +10,7 @@ export default function Expenses() {
   const [category, setCategory] = useState('Tea');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [expenseDate, setExpenseDate] = useState(() => {
     // Current local IST date YYYY-MM-DD
     return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
@@ -47,11 +48,13 @@ export default function Expenses() {
       category,
       amount: amt,
       description,
-      expense_date: expenseDate
+      expense_date: expenseDate,
+      payment_method: paymentMethod
     });
 
     setAmount('');
     setDescription('');
+    setPaymentMethod('Cash');
     setShowAddModal(false);
   };
 
@@ -130,6 +133,7 @@ export default function Expenses() {
               <th>Date</th>
               <th>Category</th>
               <th>Amount (₹)</th>
+              <th>Mode</th>
               <th>Description</th>
               <th>Recorded By</th>
             </tr>
@@ -137,7 +141,7 @@ export default function Expenses() {
           <tbody>
             {filteredExpenses.length === 0 ? (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
                   No expense records logged.
                 </td>
               </tr>
@@ -151,6 +155,14 @@ export default function Expenses() {
                     </span>
                   </td>
                   <td style={{ fontWeight: 700, color: 'var(--accent-error)' }}>₹{parseFloat(e.amount).toFixed(2)}</td>
+                  <td>
+                    <span className="badge" style={{ 
+                      backgroundColor: e.payment_method === 'UPI' ? 'var(--primary-light)' : e.payment_method === 'Card' ? '#f3e8ff' : '#fef3c7', 
+                      color: e.payment_method === 'UPI' ? 'var(--primary)' : e.payment_method === 'Card' ? '#6b21a8' : '#b45309' 
+                    }}>
+                      {e.payment_method || 'Cash'}
+                    </span>
+                  </td>
                   <td>{e.description || '—'}</td>
                   <td>{e.performed_by_name}</td>
                 </tr>
@@ -193,6 +205,15 @@ export default function Expenses() {
                     required
                     autoFocus
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Payment Method</label>
+                  <select className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                    <option value="Cash">Cash (Deducts from Counter Drawer)</option>
+                    <option value="UPI">UPI / Bank Direct</option>
+                    <option value="Card">Card Payment</option>
+                  </select>
                 </div>
 
                 <div className="form-group">
