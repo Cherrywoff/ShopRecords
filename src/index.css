@@ -394,6 +394,9 @@ h1, h2, h3, h4, h5, h6 {
 .print-receipt-section {
   display: none;
 }
+.print-report-section {
+  display: none;
+}
 
 /* Receipt Print layout */
 @media print {
@@ -401,6 +404,9 @@ h1, h2, h3, h4, h5, h6 {
     visibility: hidden;
   }
   .print-receipt-section, .print-receipt-section * {
+    visibility: visible;
+  }
+  .print-report-section, .print-report-section * {
     visibility: visible;
   }
   .print-receipt-section {
@@ -416,6 +422,19 @@ h1, h2, h3, h4, h5, h6 {
     color: #000 !important;
     background: #fff !important;
   }
+  .print-report-section {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important; /* Full width for standard A4 report printing */
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 10mm;
+    color: #000 !important;
+    background: #fff !important;
+  }
   .print-receipt-section table {
     width: 100% !important;
   }
@@ -426,8 +445,21 @@ h1, h2, h3, h4, h5, h6 {
     border-right: none !important;
     margin: 2mm 0 !important;
   }
-  .print-receipt-section button {
+  .print-receipt-section button, .print-report-section button {
     display: none !important;
+  }
+  .print-report-section table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 15px 0 !important;
+  }
+  .print-report-section th, .print-report-section td {
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+    text-align: left !important;
+  }
+  .print-report-section th {
+    background-color: #f2f2f2 !important;
   }
 }
 

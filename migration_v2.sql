@@ -31,6 +31,23 @@ CREATE TABLE IF NOT EXISTS public.customer_transactions (
 -- Disable Row Level Security on it
 ALTER TABLE public.customer_transactions DISABLE ROW LEVEL SECURITY;
 
+-- 4. Ensure supplier_transactions table exists for supplier history ledger
+CREATE TABLE IF NOT EXISTS public.supplier_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+    supplier_id UUID NOT NULL REFERENCES public.suppliers(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('Purchase', 'Payment')),
+    amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    performed_by_user_id UUID,
+    performed_by_name TEXT,
+    performed_by_role TEXT
+);
+
+-- Disable Row Level Security on it
+ALTER TABLE public.supplier_transactions DISABLE ROW LEVEL SECURITY;
+
 -- 4. Enable Supabase Realtime Replication for Instant Device Syncing
 ALTER PUBLICATION supabase_realtime ADD TABLE public.shops;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.users;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 
 export default function Reports() {
@@ -13,6 +13,16 @@ export default function Reports() {
   const [activeTab, setActiveTab] = useState('gst');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [activePrintReport, setActivePrintReport] = useState(null);
+
+  useEffect(() => {
+    if (activePrintReport) {
+      setTimeout(() => {
+        window.print();
+        setActivePrintReport(null);
+      }, 500);
+    }
+  }, [activePrintReport]);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -348,13 +358,22 @@ export default function Reports() {
                   {years.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleDownloadGstReport}
-                style={{ marginTop: '1.25rem', minHeight: '38px' }}
-              >
-                📥 Download CA CSV Report
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem' }}>
+                <button 
+                  className="btn btn-outline" 
+                  onClick={handleDownloadGstReport}
+                  style={{ minHeight: '38px' }}
+                >
+                  📥 CSV
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => setActivePrintReport({ type: 'gst', title: 'GST CA Report Statement', data: getGstData() })}
+                  style={{ minHeight: '38px' }}
+                >
+                  🖨️ Export PDF
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', margin: '1rem 0' }}>
@@ -406,9 +425,14 @@ export default function Reports() {
           <div className="flex-column-gap">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1.1rem', margin: 0 }}>System Logs (Auditor Trail)</h2>
-              <button className="btn btn-primary" onClick={handleDownloadAuditReport}>
-                📥 Download Full Audit Log
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-outline" onClick={handleDownloadAuditReport}>
+                  📥 CSV
+                </button>
+                <button className="btn btn-primary" onClick={() => setActivePrintReport({ type: 'audit', title: 'System Activity Logs', data: getAuditLogs() })}>
+                  🖨️ Export PDF
+                </button>
+              </div>
             </div>
 
             <div className="table-container">
@@ -460,9 +484,14 @@ export default function Reports() {
           <div className="flex-column-gap">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1.1rem', margin: 0 }}>Inventory Valuation & Liability</h2>
-              <button className="btn btn-primary" onClick={handleDownloadInventoryReport}>
-                📥 Download Inventory CSV
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-outline" onClick={handleDownloadInventoryReport}>
+                  📥 CSV
+                </button>
+                <button className="btn btn-primary" onClick={() => setActivePrintReport({ type: 'inventory', title: 'Inventory Valuation Report', data: getInventoryValuation() })}>
+                  🖨️ Export PDF
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -521,6 +550,155 @@ export default function Reports() {
           </div>
         )}
       </div>
+
+      {/* Full-Page PDF Report Print Template (hidden from screen, shown on print layout) */}
+      {activePrintReport && (
+        <div className="print-report-section">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #000', paddingBottom: '10px', marginBottom: '20px' }}>
+            <div>
+              <h1 style={{ fontSize: '24px', margin: 0, fontWeight: 'bold' }}>{currentShop?.name || 'ShopRecords Store'}</h1>
+              <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#555' }}>Shop Business Report</p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <h2 style={{ fontSize: '18px', margin: 0, color: '#333' }}>{activePrintReport.title}</h2>
+              <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#666' }}>
+                Timeline: {activePrintReport.type === 'gst' ? `${months[selectedMonth]} ${selectedYear}` : `As of ${new Date().toLocaleDateString('en-IN')}`}
+              </p>
+            </div>
+          </div>
+
+          {/* GST PDF REPORT */}
+          {activePrintReport.type === 'gst' && (
+            <div>
+              <p style={{ fontSize: '14px', marginBottom: '15px' }}>
+                Monthly Tax Breakdown Summary for the period of <strong>{months[selectedMonth]} {selectedYear}</strong>.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>GST Rate</th>
+                    <th>Taxable Value (Base)</th>
+                    <th>CGST (Central)</th>
+                    <th>SGST (State)</th>
+                    <th>IGST (Inter-state)</th>
+                    <th>Total Tax Collected</th>
+                    <th>Gross Total Sales</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(activePrintReport.data.gstGroups).map(([rate, vals]) => (
+                    <tr key={rate}>
+                      <td>{rate}</td>
+                      <td>₹{vals.taxable.toFixed(2)}</td>
+                      <td>₹{vals.cgst.toFixed(2)}</td>
+                      <td>₹{vals.sgst.toFixed(2)}</td>
+                      <td>₹0.00</td>
+                      <td>₹{vals.tax.toFixed(2)}</td>
+                      <td>₹{vals.total.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ fontWeight: 'bold', borderTop: '2px solid #000' }}>
+                    <td>TOTAL</td>
+                    <td>₹{activePrintReport.data.totalTaxableValue.toFixed(2)}</td>
+                    <td>₹{(activePrintReport.data.totalGstCollected / 2).toFixed(2)}</td>
+                    <td>₹{(activePrintReport.data.totalGstCollected / 2).toFixed(2)}</td>
+                    <td>₹0.00</td>
+                    <td>₹{activePrintReport.data.totalGstCollected.toFixed(2)}</td>
+                    <td>₹{activePrintReport.data.grandTotalSales.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style={{ marginTop: '30px', fontSize: '12px', color: '#555', borderTop: '1px dashed #ccc', paddingTop: '15px' }}>
+                * This CA Report statement reflects completed POS transactions recorded in the local IndexedDB and Supabase cloud ledger.
+              </div>
+            </div>
+          )}
+
+          {/* AUDIT LOG PDF REPORT */}
+          {activePrintReport.type === 'audit' && (
+            <div>
+              <p style={{ fontSize: '14px', marginBottom: '15px' }}>
+                Audited System Activity Trails statement.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Module</th>
+                    <th>Action Detail</th>
+                    <th>Performed By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activePrintReport.data.slice(0, 100).map((log, idx) => (
+                    <tr key={idx}>
+                      <td>{log.date.toLocaleString('en-IN')}</td>
+                      <td>{log.type}</td>
+                      <td>{log.action}</td>
+                      <td>{log.performedBy}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* INVENTORY VALUATION PDF REPORT */}
+          {activePrintReport.type === 'inventory' && (
+            <div>
+              <p style={{ fontSize: '14px', marginBottom: '15px' }}>
+                Stock inventory valuation, projected margins, and negative stock records.
+              </p>
+              <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '20px', border: '1px solid #ddd', padding: '15px', borderRadius: '4px', backgroundColor: '#fafafa' }}>
+                <div style={{ flex: 1 }}>
+                  <strong>Total Products Cataloged:</strong> {activePrintReport.data.totalItems}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <strong>Total Cost Value:</strong> ₹{activePrintReport.data.costValue.toFixed(2)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <strong>Total MRP Retail Value:</strong> ₹{activePrintReport.data.mrpValue.toFixed(2)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <strong>Projected Gross Profit:</strong> ₹{activePrintReport.data.projectedProfit.toFixed(2)}
+                </div>
+              </div>
+
+              <h3 style={{ fontSize: '16px', margin: '20px 0 10px 0', color: '#c00' }}>Negative / Out-of-Stock Sales Items ({activePrintReport.data.negativeStockCount})</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product Name</th>
+                    <th>Barcode</th>
+                    <th>Current Stock</th>
+                    <th>MRP Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activePrintReport.data.negativeStockItems.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center' }}>No negative stock items.</td>
+                    </tr>
+                  ) : (
+                    activePrintReport.data.negativeStockItems.map((prod) => (
+                      <tr key={prod.id}>
+                        <td>{prod.name}</td>
+                        <td>{prod.barcode || 'N/A'}</td>
+                        <td>{parseFloat(prod.current_stock).toFixed(3)}</td>
+                        <td>₹{parseFloat(prod.selling_price).toFixed(2)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ position: 'fixed', bottom: '10mm', left: '10mm', right: '10mm', textAlign: 'center', fontSize: '10px', color: '#888', borderTop: '1px solid #ddd', paddingTop: '10px' }}>
+            Report generated via ShopRecords Business Management POS Suite on {new Date().toLocaleString('en-IN')}. Page 1 of 1.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
