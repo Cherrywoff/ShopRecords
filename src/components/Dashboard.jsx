@@ -102,6 +102,38 @@ export default function Dashboard({ setCurrentTab }) {
         </div>
       )}
 
+      {/* Low Stock Warning Banner */}
+      {lowStockItems.length > 0 && (
+        <div style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          padding: '1rem 1.25rem',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--accent-error)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+          animation: 'pulseGlow 2s infinite'
+        }}>
+          <div>
+            <h4 style={{ color: 'var(--accent-error)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              ⚠️ Low Stock Alert
+            </h4>
+            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              There are <strong>{lowStockItems.length}</strong> products running below their threshold stock level.
+            </p>
+          </div>
+          <button 
+            className="btn btn-danger" 
+            onClick={() => setCurrentTab('inventory')}
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', minHeight: '32px', height: '32px' }}
+          >
+            Manage Inventory
+          </button>
+        </div>
+      )}
+
       {/* Main KPI Stats Grid */}
       <div className="stats-grid">
         <div className="card stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>

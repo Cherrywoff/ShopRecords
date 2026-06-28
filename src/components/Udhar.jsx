@@ -3,11 +3,20 @@ import { useApp } from '../context/AppContext';
 import { dbOps, STORES } from '../db/db';
 
 export default function Udhar() {
-  const { customers, saveCustomer, logCustomerPayment } = useApp();
+  const { customers, saveCustomer, logCustomerPayment, currentShop } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerTxList, setCustomerTxList] = useState([]);
+  const [activePaymentReceipt, setActivePaymentReceipt] = useState(null);
+
+  useEffect(() => {
+    if (activePaymentReceipt) {
+      setTimeout(() => {
+        window.print();
+      }, 500);
+    }
+  }, [activePaymentReceipt]);
   
   // Create Customer Form
   const [name, setName] = useState('');
@@ -68,7 +77,7 @@ export default function Udhar() {
       if (!window.confirm('The amount entered is greater than the outstanding balance. Proceed?')) return;
     }
 
-    await logCustomerPayment(selectedCustomer.id, amt, paymentDesc || 'Udhar Payment Recv');
+    const tx = await logCustomerPayment(selectedCustomer.id, amt, paymentDesc || 'Udhar Payment Recv');
     
     // Close payment modal and refresh states
     setShowPaymentModal(false);
@@ -79,6 +88,10 @@ export default function Udhar() {
     const updatedCustomer = await dbOps.get(STORES.CUSTOMERS, selectedCustomer.id);
     setSelectedCustomer(updatedCustomer);
     loadCustomerTransactions(updatedCustomer.id);
+
+    if (tx && window.confirm('Would you like to print a payment receipt voucher?')) {
+      setActivePaymentReceipt(tx);
+    }
   };
 
   return (
@@ -256,7 +269,20 @@ export default function Udhar() {
                               </span>
                             </td>
                             <td style={{ fontWeight: 700 }}>₹{parseFloat(tx.amount).toFixed(2)}</td>
-                            <td>{tx.description}</td>
+                            <td>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{tx.description}</span>
+                                {tx.type === 'Payment' && (
+                                  <button
+                                    className="btn btn-outline"
+                                    onClick={() => setActivePaymentReceipt(tx)}
+                                    style={{ minHeight: '24px', height: '24px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}
+                                  >
+                                    🖨️ Print
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -314,6 +340,35 @@ export default function Udhar() {
                 <button type="submit" className="btn btn-primary">Receive Payment</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Udhar Payment Receipt print template (hidden from screen, displayed in print layout) */}
+      {activePaymentReceipt && (
+        <div className="print-receipt-section">
+          <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
+            <h3 style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentShop?.name || 'ShopRecords Store'}</h3>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Udhar Ledger Payment Receipt</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Receipt: REC-{activePaymentReceipt.id.slice(-6).toUpperCase()}</p>
+            <p style={{ margin: '1px 0', fontSize: '9px' }}>Date: {new Date(activePaymentReceipt.created_at).toLocaleString('en-IN')}</p>
+          </div>
+          
+          <hr style={{ borderTop: '1px dashed #000', margin: '1mm 0' }} />
+          
+          <div style={{ fontSize: '9px', lineHeight: '1.5' }}>
+            <strong>Customer:</strong> {selectedCustomer?.name}<br />
+            {selectedCustomer?.phone && <><strong>Phone:</strong> {selectedCustomer.phone}<br /></>}
+            <strong>Received Amount:</strong> ₹{parseFloat(activePaymentReceipt.amount).toFixed(2)}<br />
+            <strong>Description:</strong> {activePaymentReceipt.description || 'Udhar Payment'}<br />
+            <strong>Remaining Outstanding Bal:</strong> ₹{parseFloat(selectedCustomer?.outstanding_balance || 0).toFixed(2)}<br />
+            <br />
+            <strong>Received By:</strong> {activePaymentReceipt.performed_by_name || 'Owner'}<br />
+          </div>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+          <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '2mm' }}>
+            <p style={{ margin: 0 }}>Thank You for your payment!</p>
+            <p style={{ margin: 0, fontSize: '7px', color: '#666' }}>Powered by ShopRecords POS</p>
           </div>
         </div>
       )}

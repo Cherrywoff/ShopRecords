@@ -28,6 +28,7 @@ CREATE TABLE public.shops (
     expiry_date TIMESTAMP WITH TIME ZONE NOT NULL,
     employee_limit INT NOT NULL DEFAULT 2,
     device_limit INT NOT NULL DEFAULT 1,
+    gstin TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -70,6 +71,7 @@ CREATE TABLE public.customers (
     phone TEXT,
     address TEXT,
     outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    gstin TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     performed_by_user_id UUID,
     performed_by_name TEXT,
@@ -87,7 +89,8 @@ CREATE TABLE public.sales (
     total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     gst_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    payment_method TEXT NOT NULL CHECK (payment_method IN ('Cash', 'UPI', 'Card', 'Udhar')),
+    payment_method TEXT NOT NULL CHECK (payment_method IN ('Cash', 'UPI', 'Card', 'Udhar', 'Split')),
+    payment_details JSONB,
     status TEXT NOT NULL DEFAULT 'Completed' CHECK (status IN ('Completed', 'Refunded')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,

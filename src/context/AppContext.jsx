@@ -264,6 +264,15 @@ export const AppProvider = ({ children }) => {
     }
   }, [isOnline]);
 
+  // Background sync auto-refresh interval (30 seconds)
+  useEffect(() => {
+    if (!currentUser || !isOnline) return;
+    const interval = setInterval(() => {
+      pullAllTablesFromCloud();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [currentUser, isOnline]);
+
   // Setup Supabase Realtime Channels
   useEffect(() => {
     if (!isSupabaseConfigured || !currentUser || !navigator.onLine) return;
@@ -387,7 +396,7 @@ export const AppProvider = ({ children }) => {
   const clearCart = () => setCart([]);
 
   // --- BILLING / SALES TRANSACTIONS ---
-  const checkout = async ({ paymentMethod, customerId, discountAmount = 0 }) => {
+  const checkout = async ({ paymentMethod, customerId, discountAmount = 0, paymentDetails = null }) => {
     if (!isSubscriptionActive()) {
       alert('Subscription expired! Active sales billing has been suspended. Please renew.');
       return;
@@ -406,9 +415,10 @@ export const AppProvider = ({ children }) => {
 
     let subTotal = 0;
     let gstTotal = 0;
+    const items = [];
 
-    // Compile items and adjust stock levels locally
-    const items = cart.map((cartItem) => {
+    // Compile items and adjust stock levels locally (sequentially to prevent races!)
+    for (const cartItem of cart) {
       const price = cartItem.customPrice;
       const qty = cartItem.quantity;
       const basePrice = price / (1 + (cartItem.product.gst_rate / 100));
@@ -420,10 +430,12 @@ export const AppProvider = ({ children }) => {
       // Adjust stock levels
       const updatedProduct = { ...cartItem.product };
       updatedProduct.current_stock = parseFloat(updatedProduct.current_stock) - qty;
-      dbOps.put(STORES.PRODUCTS, updatedProduct);
-      queueSyncAction(STORES.PRODUCTS, updatedProduct.id, 'UPDATE');
+      
+      // Await database write operations to prevent concurrent queue race condition
+      await dbOps.put(STORES.PRODUCTS, updatedProduct);
+      await queueSyncAction(STORES.PRODUCTS, updatedProduct.id, 'UPDATE', updatedProduct);
 
-      return {
+      items.push({
         id: generateUUID(),
         sale_id: saleId,
         product_id: cartItem.product.id,
@@ -433,8 +445,8 @@ export const AppProvider = ({ children }) => {
         price: price,
         gst_rate: cartItem.product.gst_rate,
         gst_amount: gstAmount
-      };
-    });
+      });
+    }
 
     const netTotal = subTotal - discountAmount;
 
@@ -450,6 +462,7 @@ export const AppProvider = ({ children }) => {
       discount_amount: discountAmount,
       gst_amount: gstTotal,
       payment_method: paymentMethod,
+      payment_details: paymentDetails,
       status: 'Completed',
       created_at: new Date().toISOString(),
       ...getAuditMetadata()
@@ -463,8 +476,6 @@ export const AppProvider = ({ children }) => {
     await queueSyncAction(STORES.SALES, saleId, 'INSERT', saleRecord);
     for (const item of items) {
       await dbOps.put(STORES.SALE_ITEMS, item);
-      // Note: Supabase sale_items is a helper relation table, we can sync it inside our sales triggers or upsert it.
-      // We will queue upserts for each item
       await queueSyncAction(STORES.SALE_ITEMS, item.id, 'INSERT', item);
     }
 
@@ -624,6 +635,7 @@ export const AppProvider = ({ children }) => {
     await dbOps.put(STORES.CUSTOMER_TRANSACTIONS, paymentTx);
     await queueSyncAction(STORES.CUSTOMER_TRANSACTIONS, paymentTx.id, 'INSERT', paymentTx);
     await loadDataFromIndexedDB();
+    return paymentTx;
   };
 
   // 3. EXPENSES

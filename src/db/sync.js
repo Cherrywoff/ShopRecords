@@ -205,6 +205,25 @@ async function processQueueItem(item) {
       
       if (error) throw error;
     } else {
+      // Last-Write-Wins timestamp check
+      if (data && data.updated_at) {
+        const { data: serverRecord } = await supabase
+          .from(tableName)
+          .select('updated_at')
+          .eq('id', recordId)
+          .maybeSingle();
+        
+        if (serverRecord && serverRecord.updated_at) {
+          const serverTime = new Date(serverRecord.updated_at).getTime();
+          const localTime = new Date(data.updated_at).getTime();
+          
+          if (serverTime > localTime) {
+            console.log(`Sync conflict resolved (LWW): Server record is newer than local update. Skipping upsert for table ${tableName}, id ${recordId}.`);
+            return { success: true };
+          }
+        }
+      }
+
       // Upsert covers INSERT and UPDATE actions
       const { error } = await supabase
         .from(tableName)

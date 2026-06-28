@@ -20,8 +20,12 @@ export default function POS() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [discountVal, setDiscountVal] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [splitCash, setSplitCash] = useState('');
+  const [splitUPI, setSplitUPI] = useState('');
+  const [splitCard, setSplitCard] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [quickCreateName, setQuickCreateName] = useState('');
@@ -46,6 +50,8 @@ export default function POS() {
     return acc + ((price - base) * qty);
   }, 0);
   const netTotal = Math.max(0, subTotal - parseFloat(discountVal || 0));
+  const splitTotal = (parseFloat(splitCash) || 0) + (parseFloat(splitUPI) || 0) + (parseFloat(splitCard) || 0);
+  const splitRemaining = netTotal - splitTotal;
 
   // Quick add Carry Bag
   const handleQuickAddCarryBag = async () => {
@@ -80,8 +86,6 @@ export default function POS() {
     } else {
       // Trigger Quick Create with pre-filled barcode
       setQuickCreateBarcode(barcode);
-      setQuickCreateName('');
-      setQuickCreatePrice('');
       setShowQuickCreate(true);
     }
   };
@@ -90,13 +94,13 @@ export default function POS() {
   const handleQuickCreateSave = async (e) => {
     e.preventDefault();
     if (!quickCreateName || !quickCreatePrice) return alert('Name and Price are required.');
-
+    
     const newId = generateUUID();
     const newProd = {
       id: newId,
       name: quickCreateName,
       barcode: quickCreateBarcode || `QUICK-${Date.now()}`,
-      cost_price: parseFloat(quickCreatePrice) * 0.7, // Assume 30% profit margin
+      cost_price: parseFloat(quickCreatePrice) * 0.7, // Assume 30% margin for unlisted
       selling_price: parseFloat(quickCreatePrice),
       hsn_code: '',
       gst_rate: 0,
@@ -121,12 +125,23 @@ export default function POS() {
       return alert('Customer must be selected for Udhar (credit) transactions.');
     }
 
+    if (paymentMethod === 'Split') {
+      if (Math.abs(splitRemaining) >= 0.01) {
+        return alert(`Please distribute the split payments to exactly match the net total of ₹${netTotal.toFixed(2)}.`);
+      }
+    }
+
     const cartCopy = [...cart];
 
     const sale = await checkout({
       paymentMethod,
       customerId: selectedCustomerId,
-      discountAmount: parseFloat(discountVal || 0)
+      discountAmount: parseFloat(discountVal || 0),
+      paymentDetails: paymentMethod === 'Split' ? {
+        Cash: parseFloat(splitCash) || 0,
+        UPI: parseFloat(splitUPI) || 0,
+        Card: parseFloat(splitCard) || 0
+      } : null
     });
 
     if (sale) {
@@ -138,6 +153,9 @@ export default function POS() {
       // Clear inputs
       setSelectedCustomerId('');
       setDiscountVal(0);
+      setSplitCash('');
+      setSplitUPI('');
+      setSplitCard('');
     }
   };
 
@@ -149,6 +167,41 @@ export default function POS() {
       }, 500);
     }
   }, [activeReceipt]);
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // 1. F2: Focus product search
+      if (e.key === 'F2') {
+        e.preventDefault();
+        const searchInput = document.querySelector('.pos-search-input');
+        if (searchInput) searchInput.focus();
+      }
+      
+      // 2. F8: Toggle payment method
+      if (e.key === 'F8') {
+        e.preventDefault();
+        setPaymentMethod(prev => {
+          const methods = ['Cash', 'UPI', 'Card', 'Udhar', 'Split'];
+          const idx = methods.indexOf(prev);
+          const nextIdx = (idx + 1) % (currentUser?.role === 'Cashier' ? 4 : 5); // Cashier cannot use Udhar
+          const nextMethod = methods[nextIdx] === 'Udhar' && currentUser?.role === 'Cashier' 
+            ? 'Split' 
+            : methods[nextIdx];
+          return nextMethod;
+        });
+      }
+
+      // 3. Ctrl+Space: Quick Carry Bag
+      if (e.ctrlKey && e.code === 'Space') {
+        e.preventDefault();
+        handleQuickAddCarryBag();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [products, currentUser]);
 
   return (
     <div className="pos-layout" style={{ animation: 'fadeIn 0.3s ease-out' }}>
@@ -162,8 +215,8 @@ export default function POS() {
             <div style={{ flexGrow: 1, position: 'relative' }}>
               <input
                 type="text"
-                className="input"
-                placeholder="Search products by name or barcode..."
+                className="input pos-search-input"
+                placeholder="Search products by name or barcode... [F2]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -216,6 +269,56 @@ export default function POS() {
             </button>
           </div>
         </div>
+
+        {/* Quick Add popular items grid */}
+        {products.filter(p => !p.is_unlisted).length > 0 && (
+          <div className="card" style={{ padding: '1rem' }}>
+            <h4 style={{ fontSize: '0.95rem', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>⭐ Quick Tap Products</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.5rem' }}>
+              {products
+                .filter(p => !p.is_unlisted)
+                .slice(0, 10) // Display top 10 items
+                .map(p => (
+                  <button
+                    key={p.id}
+                    className="btn btn-outline"
+                    onClick={() => addToCart(p, 1)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.5rem',
+                      height: '70px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderColor: 'var(--border-color)',
+                      textAlign: 'center',
+                      lineHeight: '1.2',
+                      cursor: 'pointer',
+                      transition: 'border-color var(--transition-normal), transform var(--transition-normal)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--primary)';
+                      e.currentTarget.style.transform = 'scale(1.02)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                      e.currentTarget.style.transform = 'none';
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebKitLineClamp: 2, WebKitBoxOrient: 'vertical' }}>
+                      {p.name}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, marginTop: '2px' }}>
+                      ₹{parseFloat(p.selling_price).toFixed(2)}
+                    </div>
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+        )}
 
         {/* Cart Item Grid */}
         <div className="pos-cart">
@@ -302,20 +405,103 @@ export default function POS() {
         <h3 style={{ fontSize: '1.2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Checkout Panel</h3>
 
         {/* Customer mapping */}
-        <div className="form-group">
+        <div className="form-group" style={{ position: 'relative' }}>
           <label className="form-label">Select Customer</label>
-          <select 
-            className="input" 
-            value={selectedCustomerId} 
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-          >
-            <option value="">Walk-in Customer</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.phone || 'No phone'})
-              </option>
-            ))}
-          </select>
+          
+          {selectedCustomerId ? (
+            (() => {
+              const cust = customers.find(c => c.id === selectedCustomerId);
+              return (
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  padding: '0.5rem 0.75rem', 
+                  backgroundColor: 'var(--bg-tertiary)', 
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '0.9rem'
+                }}>
+                  <div>
+                    <strong style={{ color: 'var(--primary)' }}>{cust?.name}</strong>
+                    {cust?.phone && <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{cust.phone}</div>}
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      Ledger Bal: <span style={{ fontWeight: 700, color: parseFloat(cust?.outstanding_balance || 0) > 0 ? 'var(--accent-warning)' : 'var(--text-secondary)' }}>₹{parseFloat(cust?.outstanding_balance || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline" 
+                    onClick={() => { setSelectedCustomerId(''); setCustomerSearch(''); }}
+                    style={{ minHeight: '28px', height: '28px', padding: '0 0.5rem', fontSize: '0.75rem' }}
+                  >
+                    Clear (X)
+                  </button>
+                </div>
+              );
+            })()
+          ) : (
+            <>
+              <input
+                type="text"
+                className="input"
+                placeholder="Search customer by name or phone..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                style={{ minHeight: '36px', height: '36px' }}
+              />
+              {customerSearch && (
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '100%', 
+                  left: 0, 
+                  right: 0, 
+                  backgroundColor: 'var(--bg-secondary)', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: 'var(--radius-md)', 
+                  zIndex: 200, 
+                  maxHeight: '180px', 
+                  overflowY: 'auto',
+                  boxShadow: 'var(--shadow-lg)'
+                }}>
+                  {customers
+                    .filter(c => 
+                      c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
+                      (c.phone && c.phone.includes(customerSearch))
+                    )
+                    .map(c => (
+                      <div 
+                        key={c.id} 
+                        onClick={() => {
+                          setSelectedCustomerId(c.id);
+                          setCustomerSearch('');
+                        }}
+                        style={{ 
+                          padding: '0.5rem 0.75rem', 
+                          cursor: 'pointer', 
+                          borderBottom: '1px solid var(--border-color)',
+                          fontSize: '0.85rem'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--bg-tertiary)'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                      >
+                        <strong>{c.name}</strong> ({c.phone || 'No phone'}) - Bal: ₹{parseFloat(c.outstanding_balance || 0).toFixed(2)}
+                      </div>
+                    ))
+                  }
+                  {customers.filter(c => 
+                      c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
+                      (c.phone && c.phone.includes(customerSearch))
+                    ).length === 0 && (
+                      <div style={{ padding: '0.5rem 0.75rem', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
+                        No matching customer found.
+                      </div>
+                    )
+                  }
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Pricing Totals */}
@@ -351,8 +537,7 @@ export default function POS() {
         <div className="form-group">
           <label className="form-label">Payment Method</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-            {['Cash', 'UPI', 'Card', 'Udhar'].map((method) => {
-              // Cashier is blocked from Udhar
+            {['Cash', 'UPI', 'Card', 'Udhar', 'Split'].map((method) => {
               if (method === 'Udhar' && currentUser?.role === 'Cashier') return null;
               
               return (
@@ -366,12 +551,68 @@ export default function POS() {
                   {method === 'UPI' && '📱 '}
                   {method === 'Card' && '💳 '}
                   {method === 'Udhar' && '🤝 '}
+                  {method === 'Split' && '🔀 '}
                   {method}
                 </button>
               );
             })}
           </div>
         </div>
+
+        {/* Split Details Input */}
+        {paymentMethod === 'Split' && (
+          <div style={{ 
+            backgroundColor: 'var(--bg-tertiary)', 
+            padding: '0.75rem', 
+            borderRadius: 'var(--radius-md)', 
+            border: '1px solid var(--border-color)',
+            fontSize: '0.85rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+          }}>
+            <div style={{ fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>Split Payment Distribution</div>
+            <div className="flex-row-between">
+              <span>Cash Amount (₹):</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                className="input" 
+                style={{ width: '100px', minHeight: '28px', height: '28px', padding: '0 0.25rem', textAlign: 'right' }} 
+                value={splitCash}
+                onChange={(e) => setSplitCash(e.target.value)}
+              />
+            </div>
+            <div className="flex-row-between">
+              <span>UPI Amount (₹):</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                className="input" 
+                style={{ width: '100px', minHeight: '28px', height: '28px', padding: '0 0.25rem', textAlign: 'right' }} 
+                value={splitUPI}
+                onChange={(e) => setSplitUPI(e.target.value)}
+              />
+            </div>
+            <div className="flex-row-between">
+              <span>Card Amount (₹):</span>
+              <input 
+                type="number" 
+                step="0.01" 
+                className="input" 
+                style={{ width: '100px', minHeight: '28px', height: '28px', padding: '0 0.25rem', textAlign: 'right' }} 
+                value={splitCard}
+                onChange={(e) => setSplitCard(e.target.value)}
+              />
+            </div>
+            <div className="flex-row-between" style={{ fontWeight: 'bold', borderTop: '1px solid var(--border-color)', paddingTop: '0.25rem', marginTop: '0.25rem' }}>
+              <span>Remaining to Settle:</span>
+              <span style={{ color: Math.abs(splitRemaining) < 0.01 ? 'var(--primary)' : 'var(--accent-error)' }}>
+                ₹{splitRemaining.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
 
         <button className="btn btn-primary" onClick={handleCheckoutSubmit} style={{ width: '100%', fontSize: '1.05rem', fontWeight: 700 }}>
           📦 Complete & Print Bill
