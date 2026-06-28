@@ -128,7 +128,7 @@ export default function Sidebar({ currentTab, setCurrentTab }) {
             backgroundColor: 'var(--bg-accent)',
             display: 'flex',
             alignItems: 'center',
-            justify-content: 'center',
+            justifyContent: 'center',
             fontWeight: 'bold',
             fontSize: '0.9rem'
           }}>
