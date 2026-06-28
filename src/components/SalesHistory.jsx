@@ -15,10 +15,21 @@ export default function SalesHistory() {
 
   const isCashier = currentUser?.role === 'Cashier';
 
+  // Helper to convert UTC timestamp to local Asia/Kolkata date string (YYYY-MM-DD)
+  const getLocalDateString = (isoString) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    } catch (e) {
+      return isoString.slice(0, 10);
+    }
+  };
+
   // Apply filters
   const filteredSales = sales.filter((sale) => {
     const matchInvoice = sale.invoice_number.toLowerCase().includes(invoiceQuery.toLowerCase());
-    const matchDate = dateFilter ? sale.created_at.startsWith(dateFilter) : true;
+    const matchDate = dateFilter ? getLocalDateString(sale.created_at) === dateFilter : true;
     const matchPayment = paymentFilter ? sale.payment_method === paymentFilter : true;
     const matchCustomer = sale.customer_name?.toLowerCase().includes(customerQuery.toLowerCase());
     return matchInvoice && matchDate && matchPayment && matchCustomer;

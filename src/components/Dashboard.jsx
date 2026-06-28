@@ -18,10 +18,20 @@ export default function Dashboard({ setCurrentTab }) {
     return dateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   };
 
+  const getLocalDateString = (isoString) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    } catch (e) {
+      return isoString.slice(0, 10);
+    }
+  };
+
   const todayStr = getISTDateString();
 
   // 1. Daily Sales Metrics
-  const todaySales = sales.filter(s => s.created_at.startsWith(todayStr) && s.status === 'Completed');
+  const todaySales = sales.filter(s => getLocalDateString(s.created_at) === todayStr && s.status === 'Completed');
   const todaySalesCount = todaySales.length;
   const todaySalesTotal = todaySales.reduce((acc, curr) => acc + parseFloat(curr.total_amount), 0);
 
