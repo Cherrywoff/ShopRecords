@@ -5,12 +5,28 @@
   "description": "ShopRecords - Premium multi-tenant retail management and offline-first POS for Indian shops.",
   "lang": "en",
   "dir": "ltr",
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
     {
       "src": "icon.jpg",
       "type": "image/jpeg",
       "sizes": "1024x1024",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
@@ -19,7 +35,14 @@
       "sizes": "1024x1024",
       "type": "image/jpeg",
       "form_factor": "wide",
-      "label": "ShopRecords POS Terminal Dashboard"
+      "label": "ShopRecords Desktop Dashboard"
+    },
+    {
+      "src": "screenshot-mobile.png",
+      "sizes": "600x1067",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ShopRecords Mobile Dashboard"
     }
   ],
   "start_url": "/",
