@@ -600,28 +600,49 @@ export const AppProvider = ({ children }) => {
   // 1. PRODUCTS
   const saveProduct = async (product) => {
     if (!isSubscriptionActive()) return alert('Subscription expired! Write operations locked.');
-    const isNew = !product.id;
-    const prodId = product.id || generateUUID();
 
     // Case-insensitive duplicate check
     const existingProducts = await dbOps.getAll(STORES.PRODUCTS);
-    const hasDuplicate = existingProducts.some(p => 
-      p.id !== prodId && 
+    const existing = existingProducts.find(p => 
+      p.id !== product.id && 
       p.name.trim().toLowerCase() === product.name.trim().toLowerCase() &&
       (!p.shop_id || p.shop_id === currentUser.shop_id)
     );
 
-    if (hasDuplicate) {
-      alert(`Error: A product named "${product.name}" already exists in your inventory. Duplicate names are not allowed.`);
-      throw new Error('Duplicate product name');
+    let productRecord;
+    let isNew = !product.id;
+    let prodId = product.id || generateUUID();
+
+    if (existing) {
+      if (existing.is_unlisted) {
+        // Merge the unlisted item into a listed item, accounting for negative stock!
+        const inputStock = parseFloat(product.current_stock || 0);
+        const existingStock = parseFloat(existing.current_stock || 0);
+        
+        productRecord = {
+          ...existing,
+          ...product,
+          id: existing.id, // Keep the existing ID so transactions linking to it remain valid
+          current_stock: existingStock + inputStock,
+          is_unlisted: false,
+          shop_id: currentUser.shop_id,
+          ...getAuditMetadata()
+        };
+        prodId = existing.id;
+        isNew = false; // It is an UPDATE now
+      } else {
+        alert(`Error: A product named "${product.name}" already exists in your inventory. Duplicate names are not allowed.`);
+        throw new Error('Duplicate product name');
+      }
+    } else {
+      productRecord = {
+        ...product,
+        id: prodId,
+        shop_id: currentUser.shop_id,
+        ...getAuditMetadata()
+      };
     }
 
-    const productRecord = {
-      ...product,
-      id: prodId,
-      shop_id: currentUser.shop_id,
-      ...getAuditMetadata()
-    };
     await dbOps.put(STORES.PRODUCTS, productRecord);
     await queueSyncAction(STORES.PRODUCTS, prodId, isNew ? 'INSERT' : 'UPDATE', productRecord);
     await loadDataFromIndexedDB();

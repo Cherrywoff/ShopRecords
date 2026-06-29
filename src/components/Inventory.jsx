@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { generateUUID } from '../db/db';
+import BarcodeScanner from './BarcodeScanner';
 
 export default function Inventory() {
   const { products, saveProduct, deleteProduct, currentUser } = useApp();
@@ -22,6 +23,7 @@ export default function Inventory() {
   const [showRestockModal, setShowRestockModal] = useState(false);
   const [restockProduct, setRestockProduct] = useState(null);
   const [restockQuantity, setRestockQuantity] = useState('');
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
   const isCashier = currentUser?.role === 'Cashier';
 
@@ -403,12 +405,24 @@ export default function Inventory() {
 
                 <div className="form-group">
                   <label className="form-label">Barcode digits (optional)</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={barcode}
-                    onChange={(e) => setBarcode(e.target.value)}
-                  />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      type="text"
+                      className="input"
+                      style={{ flexGrow: 1 }}
+                      placeholder="Type barcode or scan..."
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => setShowBarcodeScanner(true)}
+                      style={{ minHeight: '48px', padding: '0 1rem' }}
+                    >
+                      📷 Scan
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -537,6 +551,16 @@ export default function Inventory() {
             </form>
           </div>
         </div>
+      )}
+
+      {showBarcodeScanner && (
+        <BarcodeScanner 
+          onDetected={(code) => {
+            setBarcode(code);
+            setShowBarcodeScanner(false);
+          }}
+          onClose={() => setShowBarcodeScanner(false)}
+        />
       )}
     </div>
   );

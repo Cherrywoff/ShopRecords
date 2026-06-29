@@ -4,6 +4,9 @@ import { Html5Qrcode } from 'html5-qrcode';
 export default function BarcodeScanner({ onDetected, onClose }) {
   const [manualBarcode, setManualBarcode] = useState('');
   const [scannerError, setScannerError] = useState(null);
+  const [hasFlash, setHasFlash] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [scannerInstance, setScannerInstance] = useState(null);
 
   useEffect(() => {
     let html5Qrcode = null;
@@ -36,6 +39,19 @@ export default function BarcodeScanner({ onDetected, onClose }) {
             // Keep scanner reading silently
           }
         );
+
+        // Check torch capability after successful stream startup
+        try {
+          const track = html5Qrcode.getRunningTrack();
+          const caps = track?.getCapabilities();
+          if (caps && 'torch' in caps) {
+            setHasFlash(true);
+          }
+        } catch (e) {
+          console.warn("Torch capability check failed:", e);
+        }
+
+        setScannerInstance(html5Qrcode);
       } catch (err) {
         console.warn("Camera start failed, falling back to manual input:", err);
         setScannerError(err.message || 'Unable to access camera.');
@@ -53,6 +69,22 @@ export default function BarcodeScanner({ onDetected, onClose }) {
     };
   }, [onDetected]);
 
+  const handleToggleFlash = async () => {
+    if (!scannerInstance) return;
+    try {
+      const track = scannerInstance.getRunningTrack();
+      if (track && track.getCapabilities()?.torch) {
+        const nextFlash = !flashOn;
+        await track.applyConstraints({
+          advanced: [{ torch: nextFlash }]
+        });
+        setFlashOn(nextFlash);
+      }
+    } catch (e) {
+      console.warn("Torch apply constraints failed:", e);
+    }
+  };
+
   const handleManualSubmit = (e) => {
     e.preventDefault();
     if (manualBarcode.trim()) {
@@ -67,7 +99,28 @@ export default function BarcodeScanner({ onDetected, onClose }) {
         {/* Title panel */}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', borderBottom: '1px solid #222', backgroundColor: '#111', alignItems: 'center' }}>
           <h3 style={{ fontSize: '1rem', color: '#fff' }}>📷 Live Barcode Scanner</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            {hasFlash && (
+              <button 
+                type="button"
+                onClick={handleToggleFlash} 
+                className="btn btn-outline" 
+                style={{ 
+                  minHeight: '32px', 
+                  height: '32px', 
+                  padding: '0 0.75rem', 
+                  fontSize: '0.8rem', 
+                  color: '#fff', 
+                  borderColor: '#444', 
+                  backgroundColor: flashOn ? 'var(--primary)' : 'transparent',
+                  cursor: 'pointer'
+                }}
+              >
+                {flashOn ? '🔦 Flash On' : '🔦 Flash Off'}
+              </button>
+            )}
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+          </div>
         </div>
 
         {/* Camera Render Viewport */}
