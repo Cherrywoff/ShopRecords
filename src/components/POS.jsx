@@ -177,14 +177,33 @@ export default function POS() {
   const handleShareBill = () => {
     if (!activeReceipt) return;
 
+    let itemsDetailsText = '';
+    if (activeReceipt.items && activeReceipt.items.length > 0) {
+      itemsDetailsText = `-------------------------\n`;
+      activeReceipt.items.forEach((item, index) => {
+        if (!item || !item.product) return;
+        const name = item.product.name;
+        const qty = parseFloat(item.quantity || 0);
+        const rate = parseFloat(item.customPrice || 0);
+        const total = rate * qty;
+        itemsDetailsText += `${index + 1}. ${name}\n   Qty: ${qty} x ₹${rate.toFixed(2)} = ₹${total.toFixed(2)}\n`;
+      });
+    }
+
     const summaryText = `🛒 *ShopRecords Invoice* \n` +
       `-------------------------\n` +
       `Store: ${currentShop?.name || 'ShopRecords'}\n` +
-      `Invoice: ${activeReceipt.invoice_number}\n` +
+      `Invoice No: ${activeReceipt.invoice_number}\n` +
       `Date: ${new Date(activeReceipt.created_at).toLocaleString('en-IN')}\n` +
+      `Billed To: ${activeReceipt.customer_name || 'Walk-in Customer'}\n` +
+      (activeReceipt.customer_phone ? `Phone: ${activeReceipt.customer_phone}\n` : '') +
+      itemsDetailsText +
       `-------------------------\n` +
-      `Total Amount: ₹${parseFloat(activeReceipt.total_amount).toFixed(2)}\n` +
+      `Subtotal: ₹${(activeReceipt.total_amount + activeReceipt.discount_amount).toFixed(2)}\n` +
+      (activeReceipt.discount_amount > 0 ? `Discount: -₹${activeReceipt.discount_amount.toFixed(2)}\n` : '') +
+      `Net Payable: ₹${activeReceipt.total_amount.toFixed(2)}\n` +
       `Payment Mode: ${activeReceipt.payment_method}\n` +
+      `-------------------------\n` +
       `Thank you for shopping with us!`;
 
     if (navigator.share) {
@@ -196,7 +215,7 @@ export default function POS() {
       });
     } else {
       navigator.clipboard.writeText(summaryText);
-      alert('Invoice summary copied to clipboard! You can now paste and share it via WhatsApp, SMS, or Email.');
+      alert('Invoice details copied to clipboard! You can now paste and share it via WhatsApp, SMS, or Email.');
     }
   };
 
