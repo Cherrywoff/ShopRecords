@@ -50,7 +50,7 @@ export default function Sidebar({ currentTab, setCurrentTab }) {
     <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '1.5rem' }}>
       <div>
         <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <img src="/icon.png" alt="ShopRecords Logo" style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }} />
+          <img src="/icon.jpg" alt="ShopRecords Logo" style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }} />
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>ShopRecords</h2>
         </div>
 

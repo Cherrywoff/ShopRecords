@@ -1,12 +1,25 @@
 {
+  "id": "/?source=pwa",
   "short_name": "ShopRecords",
   "name": "ShopRecords POS Terminal",
+  "description": "ShopRecords - Premium multi-tenant retail management and offline-first POS for Indian shops.",
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
     {
-      "src": "icon.png",
-      "type": "image/png",
-      "sizes": "512x512",
+      "src": "icon.jpg",
+      "type": "image/jpeg",
+      "sizes": "1024x1024",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot1.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "ShopRecords POS Terminal Dashboard"
     }
   ],
   "start_url": "/",
