@@ -31,9 +31,9 @@ export default function Auth() {
       padding: '1.5rem'
     }}>
       <div className="card" style={{ width: '100%', maxWidth: '420px', padding: '2rem', animation: 'fadeIn 0.5s ease-in-out' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <span style={{ fontSize: '3rem' }}>📊</span>
-          <h1 style={{ fontSize: '1.75rem', marginTop: '0.5rem', fontFamily: 'var(--font-display)' }}>ShopRecords</h1>
+        <div style={{ textAlign: 'center', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+          <img src="/icon.png" alt="ShopRecords Logo" style={{ width: '80px', height: '80px', borderRadius: 'var(--radius-md)', objectFit: 'cover', boxShadow: 'var(--shadow-md)' }} />
+          <h1 style={{ fontSize: '1.75rem', marginTop: '0.25rem', fontFamily: 'var(--font-display)' }}>ShopRecords</h1>
           <p style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             POS Terminal & Shop Management
           </p>
