@@ -871,107 +871,76 @@ export const AppProvider = ({ children }) => {
   };
 
   const handleLogin = async (email, password) => {
-    // Helper to perform offline authentication checks
-    const tryOfflineLogin = async () => {
-      const offlineUsers = await dbOps.getAll(STORES.USERS);
-      const matchedUser = offlineUsers.find(
-        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-      );
+    if (!navigator.onLine) {
+      alert('Internet connection is required to log in. Please check your network connection.');
+      return false;
+    }
 
-      if (matchedUser) {
-        setCurrentUser(matchedUser);
-        if (matchedUser.shop_id) {
-          const localShop = await dbOps.get(STORES.SHOPS, matchedUser.shop_id);
-          setCurrentShop(localShop);
-        }
-        localStorage.setItem('offline_session', JSON.stringify(matchedUser));
-        alert(`Offline login successful! Logged in as ${matchedUser.role}.`);
-        return true;
-      } else {
-        alert('Authentication failed. No offline cache record exists for this account. Log in once online first.');
+    try {
+      const { data: userRecord, error } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('email', email)
+        .eq('password', password)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!userRecord) {
+        throw new Error('Invalid User ID or password.');
+      }
+
+      if (userRecord.status === 'Suspended') {
+        alert('Your profile has been suspended by the administrator.');
         return false;
       }
-    };
 
-    if (isSupabaseConfigured && navigator.onLine) {
-      try {
-        const { data: userRecord, error } = await supabase
-          .from('users')
+      let shop = null;
+      if (userRecord.shop_id) {
+        const { data: shopRecord } = await supabase
+          .from('shops')
           .select('*')
-          .ilike('email', email)
-          .eq('password', password)
-          .maybeSingle();
-
-        if (error) {
-          throw error;
-        }
-
-        if (!userRecord) {
-          throw new Error('Invalid User ID or password.');
-        }
-
-        if (userRecord.status === 'Suspended') {
-          alert('Your profile has been suspended by the administrator.');
-          return false;
-        }
-
-        let shop = null;
-        if (userRecord.shop_id) {
-          const { data: shopRecord } = await supabase
-            .from('shops')
-            .select('*')
-            .eq('id', userRecord.shop_id)
-            .single();
-          if (shopRecord) shop = shopRecord;
-        }
-        const cleanProfile = {
-          id: userRecord.id,
-          name: userRecord.name,
-          email: userRecord.email,
-          password: userRecord.password,
-          role: userRecord.role,
-          shop_id: userRecord.shop_id
-        };
-
-        setCurrentUser(cleanProfile);
-        setCurrentShop(shop);
-
-        // Save session
-        localStorage.setItem('offline_session', JSON.stringify(cleanProfile));
-
-        // Cache in IndexedDB
-        await dbOps.put(STORES.USERS, cleanProfile);
-        if (shop) await dbOps.put(STORES.SHOPS, shop);
-        await dbOps.put(STORES.OFFLINE_AUTH_CACHE, {
-          id: cleanProfile.id,
-          email: cleanProfile.email,
-          name: cleanProfile.name,
-          role: cleanProfile.role,
-          shop_id: cleanProfile.shop_id,
-          shopName: shop?.name || ''
-        });
-
-        return true;
-      } catch (err) {
-        // Check if the error is a connection failure
-        const isNetworkFailure = 
-          err.message?.toLowerCase().includes('failed to fetch') ||
-          err.message?.toLowerCase().includes('network') ||
-          err.status === 0 ||
-          err.status === 502 ||
-          err.status === 503 ||
-          err.status === 504;
-
-        if (isNetworkFailure) {
-          console.warn('Database connection failed on login, attempting offline login fallback...', err);
-          return await tryOfflineLogin();
-        }
-
-        alert(err.message);
-        return false;
+          .eq('id', userRecord.shop_id)
+          .single();
+        if (shopRecord) shop = shopRecord;
       }
-    } else {
-      return await tryOfflineLogin();
+      const cleanProfile = {
+        id: userRecord.id,
+        name: userRecord.name,
+        email: userRecord.email,
+        password: userRecord.password,
+        role: userRecord.role,
+        shop_id: userRecord.shop_id
+      };
+
+      setCurrentUser(cleanProfile);
+      setCurrentShop(shop);
+
+      // Save session
+      localStorage.setItem('offline_session', JSON.stringify(cleanProfile));
+
+      // Cache in IndexedDB for session recovery
+      await dbOps.put(STORES.USERS, cleanProfile);
+      if (shop) await dbOps.put(STORES.SHOPS, shop);
+      
+      return true;
+    } catch (err) {
+      const isNetworkFailure = 
+        err.message?.toLowerCase().includes('failed to fetch') ||
+        err.message?.toLowerCase().includes('network') ||
+        err.status === 0 ||
+        err.status === 502 ||
+        err.status === 503 ||
+        err.status === 504;
+
+      if (isNetworkFailure) {
+        alert('Network Error: Unable to connect to Supabase database. Please check your internet connection or cellular data.');
+      } else {
+        alert(err.message);
+      }
+      return false;
     }
   };
 
