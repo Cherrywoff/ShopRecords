@@ -6,7 +6,13 @@ const getLocalDateString = (isoString) => {
   if (!isoString) return '';
   try {
     const date = new Date(isoString);
-    return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+    const istTime = utc + (3600000 * 5.5);
+    const istDate = new Date(istTime);
+    const yyyy = istDate.getFullYear();
+    const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(istDate.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   } catch (e) {
     return isoString.slice(0, 10);
   }
@@ -15,7 +21,14 @@ const getLocalDateString = (isoString) => {
 export default function DailyClosing() {
   const { sales, expenses, dailyClosings, saveDailyClosing, customers } = useApp();
   const [closingDate, setClosingDate] = useState(() => {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD IST
+    const dateObj = new Date();
+    const utc = dateObj.getTime() + (dateObj.getTimezoneOffset() * 60000);
+    const istTime = utc + (3600000 * 5.5);
+    const istDate = new Date(istTime);
+    const yyyy = istDate.getFullYear();
+    const mm = String(istDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(istDate.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   });
 
   const [openingCash, setOpeningCash] = useState('');
