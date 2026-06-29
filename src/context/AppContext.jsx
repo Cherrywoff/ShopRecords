@@ -871,6 +871,28 @@ export const AppProvider = ({ children }) => {
   };
 
   const handleLogin = async (email, password) => {
+    // Helper to perform offline authentication checks
+    const tryOfflineLogin = async () => {
+      const offlineUsers = await dbOps.getAll(STORES.USERS);
+      const matchedUser = offlineUsers.find(
+        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+      );
+
+      if (matchedUser) {
+        setCurrentUser(matchedUser);
+        if (matchedUser.shop_id) {
+          const localShop = await dbOps.get(STORES.SHOPS, matchedUser.shop_id);
+          setCurrentShop(localShop);
+        }
+        localStorage.setItem('offline_session', JSON.stringify(matchedUser));
+        alert(`Offline login successful! Logged in as ${matchedUser.role}.`);
+        return true;
+      } else {
+        alert('Authentication failed. No offline cache record exists for this account. Log in once online first.');
+        return false;
+      }
+    };
+
     if (isSupabaseConfigured && navigator.onLine) {
       try {
         const { data: userRecord, error } = await supabase
@@ -880,7 +902,11 @@ export const AppProvider = ({ children }) => {
           .eq('password', password)
           .maybeSingle();
 
-        if (error || !userRecord) {
+        if (error) {
+          throw error;
+        }
+
+        if (!userRecord) {
           throw new Error('Invalid User ID or password.');
         }
 
@@ -927,29 +953,25 @@ export const AppProvider = ({ children }) => {
 
         return true;
       } catch (err) {
+        // Check if the error is a connection failure
+        const isNetworkFailure = 
+          err.message?.toLowerCase().includes('failed to fetch') ||
+          err.message?.toLowerCase().includes('network') ||
+          err.status === 0 ||
+          err.status === 502 ||
+          err.status === 503 ||
+          err.status === 504;
+
+        if (isNetworkFailure) {
+          console.warn('Database connection failed on login, attempting offline login fallback...', err);
+          return await tryOfflineLogin();
+        }
+
         alert(err.message);
         return false;
       }
     } else {
-      // OFFLINE LOGIN FALLBACK
-      const offlineUsers = await dbOps.getAll(STORES.USERS);
-      const matchedUser = offlineUsers.find(
-        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-      );
-
-      if (matchedUser) {
-        setCurrentUser(matchedUser);
-        if (matchedUser.shop_id) {
-          const localShop = await dbOps.get(STORES.SHOPS, matchedUser.shop_id);
-          setCurrentShop(localShop);
-        }
-        localStorage.setItem('offline_session', JSON.stringify(matchedUser));
-        alert(`Offline login successful! Logged in as ${matchedUser.role}.`);
-        return true;
-      } else {
-        alert('Authentication failed. No offline cache record exists for this account. Log in once online first.');
-        return false;
-      }
+      return await tryOfflineLogin();
     }
   };
 
