@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import BarcodeScanner from './BarcodeScanner';
 import { generateUUID } from '../db/db';
+import { jsPDF } from 'jspdf';
 
 export default function POS() {
   const { 
@@ -174,48 +175,197 @@ export default function POS() {
     }
   };
 
+  const generateInvoicePDF = (receipt, shop) => {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const primaryColor = [16, 185, 129]; // Emerald Green theme
+    const textColor = [17, 24, 39]; // Off-black
+    const secondaryTextColor = [107, 114, 128]; // Grey
+    const lightGrey = [249, 250, 251]; // Header block background
+    const borderGrey = [229, 231, 235]; // Light border
+
+    // Header Banner
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, 210, 32, 'F');
+
+    // Store details inside banner
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text(shop?.name || 'ShopRecords Store', 15, 20);
+
+    doc.setFontSize(9);
+    doc.setFont("Helvetica", "normal");
+    doc.text("GST RETAIL INVOICE", 15, 26);
+
+    // Document Title
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("TAX INVOICE", 195, 20, { align: 'right' });
+
+    // Invoice Metadata Block
+    doc.setTextColor(...textColor);
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("INVOICE DETAILS", 15, 45);
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Invoice No: ${receipt.invoice_number}`, 15, 51);
+    doc.text(`Date: ${new Date(receipt.created_at).toLocaleString('en-IN')}`, 15, 57);
+    doc.text(`Billed By: ${receipt.performed_by_name || 'Staff'}`, 15, 63);
+
+    // Customer Billing Block
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("BILLED TO", 120, 45);
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Name: ${receipt.customer_name || 'Walk-in Customer'}`, 120, 51);
+    if (receipt.customer_phone) {
+      doc.text(`Phone: ${receipt.customer_phone}`, 120, 57);
+    }
+
+    // Divider
+    doc.setDrawColor(...borderGrey);
+    doc.line(15, 70, 195, 70);
+
+    // Table Header
+    let y = 78;
+    doc.setFillColor(...lightGrey);
+    doc.rect(15, y, 180, 8, 'F');
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("Description (HSN)", 18, y + 5.5);
+    doc.text("Qty", 100, y + 5.5, { align: 'right' });
+    doc.text("Rate", 125, y + 5.5, { align: 'right' });
+    doc.text("GST%", 150, y + 5.5, { align: 'right' });
+    doc.text("Total", 192, y + 5.5, { align: 'right' });
+
+    y += 8;
+
+    // Items list
+    doc.setFont("Helvetica", "normal");
+    receipt.items.forEach(item => {
+      if (!item || !item.product) return;
+      const name = item.product.name;
+      const hsn = item.product.hsn_code ? ` (${item.product.hsn_code})` : '';
+      const qty = parseFloat(item.quantity || 0);
+      const rate = parseFloat(item.customPrice || 0);
+      const gstRate = parseFloat(item.product?.gst_rate || 0);
+      const total = rate * qty;
+
+      // Draw bottom divider border
+      doc.setDrawColor(...borderGrey);
+      doc.line(15, y, 195, y);
+
+      // Print texts
+      doc.text(`${name}${hsn}`, 18, y + 5.5);
+      doc.text(qty.toString(), 100, y + 5.5, { align: 'right' });
+      doc.text(`₹${rate.toFixed(2)}`, 125, y + 5.5, { align: 'right' });
+      doc.text(`${gstRate}%`, 150, y + 5.5, { align: 'right' });
+      doc.text(`₹${total.toFixed(2)}`, 192, y + 5.5, { align: 'right' });
+
+      y += 8;
+    });
+
+    // Draw final table bottom line
+    doc.line(15, y, 195, y);
+    y += 6;
+
+    // Totals calculations summary
+    doc.setFontSize(9);
+    doc.text("Subtotal (Inclusive of GST):", 135, y + 4);
+    doc.text(`₹${(receipt.total_amount + receipt.discount_amount).toFixed(2)}`, 192, y + 4, { align: 'right' });
+    y += 6;
+
+    if (receipt.discount_amount > 0) {
+      doc.text("Discount:", 135, y + 4);
+      doc.text(`-₹${receipt.discount_amount.toFixed(2)}`, 192, y + 4, { align: 'right' });
+      y += 6;
+    }
+
+    // Draw solid total block border
+    doc.setLineWidth(0.4);
+    doc.setDrawColor(...primaryColor);
+    doc.line(135, y + 1.5, 195, y + 1.5);
+    y += 4.5;
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(`Net Payable (${receipt.payment_method}):`, 135, y + 4);
+    doc.text(`₹${receipt.total_amount.toFixed(2)}`, 192, y + 4, { align: 'right' });
+
+    // Split Details description
+    if (receipt.payment_method === 'Split' && receipt.payment_details) {
+      y += 5.5;
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...secondaryTextColor);
+      const details = receipt.payment_details;
+      const splitArr = [];
+      if (details.Cash || details.cash) splitArr.push(`Cash: ₹${parseFloat(details.Cash || details.cash).toFixed(2)}`);
+      if (details.UPI || details.upi) splitArr.push(`UPI: ₹${parseFloat(details.UPI || details.upi).toFixed(2)}`);
+      if (details.Card || details.card) splitArr.push(`Card: ₹${parseFloat(details.Card || details.card).toFixed(2)}`);
+      doc.text(`Split breakdown: (${splitArr.join(', ')})`, 135, y + 3);
+    }
+
+    // Reset styles
+    doc.setLineWidth(0.2);
+
+    // Footer Message
+    doc.setFont("Helvetica", "italic");
+    doc.setFontSize(9);
+    doc.setTextColor(156, 163, 175);
+    doc.text("Thank you for shopping with us!", 105, 282, { align: 'center' });
+
+    return doc.output('blob');
+  };
+
   const handleShareBill = () => {
     if (!activeReceipt) return;
 
-    let itemsDetailsText = '';
-    if (activeReceipt.items && activeReceipt.items.length > 0) {
-      itemsDetailsText = `-------------------------\n`;
-      activeReceipt.items.forEach((item, index) => {
-        if (!item || !item.product) return;
-        const name = item.product.name;
-        const qty = parseFloat(item.quantity || 0);
-        const rate = parseFloat(item.customPrice || 0);
-        const total = rate * qty;
-        itemsDetailsText += `${index + 1}. ${name}\n   Qty: ${qty} x ₹${rate.toFixed(2)} = ₹${total.toFixed(2)}\n`;
-      });
-    }
+    try {
+      const pdfBlob = generateInvoicePDF(activeReceipt, currentShop);
+      const fileName = `Invoice_${activeReceipt.invoice_number}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-    const summaryText = `🛒 *ShopRecords Invoice* \n` +
-      `-------------------------\n` +
-      `Store: ${currentShop?.name || 'ShopRecords'}\n` +
-      `Invoice No: ${activeReceipt.invoice_number}\n` +
-      `Date: ${new Date(activeReceipt.created_at).toLocaleString('en-IN')}\n` +
-      `Billed To: ${activeReceipt.customer_name || 'Walk-in Customer'}\n` +
-      (activeReceipt.customer_phone ? `Phone: ${activeReceipt.customer_phone}\n` : '') +
-      itemsDetailsText +
-      `-------------------------\n` +
-      `Subtotal: ₹${(activeReceipt.total_amount + activeReceipt.discount_amount).toFixed(2)}\n` +
-      (activeReceipt.discount_amount > 0 ? `Discount: -₹${activeReceipt.discount_amount.toFixed(2)}\n` : '') +
-      `Net Payable: ₹${activeReceipt.total_amount.toFixed(2)}\n` +
-      `Payment Mode: ${activeReceipt.payment_method}\n` +
-      `-------------------------\n` +
-      `Thank you for shopping with us!`;
+      // Clean metadata text for quick messaging
+      const messageText = `📄 *Invoice ${activeReceipt.invoice_number}* from ${currentShop?.name || 'ShopRecords Store'}\n` +
+        `Total amount payable: ₹${activeReceipt.total_amount.toFixed(2)} (${activeReceipt.payment_method})\n\n` +
+        `Thank you for shopping with us!`;
 
-    if (navigator.share) {
-      navigator.share({
-        title: `Invoice ${activeReceipt.invoice_number}`,
-        text: summaryText
-      }).catch(err => {
-        console.log('Share failed:', err);
-      });
-    } else {
-      navigator.clipboard.writeText(summaryText);
-      alert('Invoice details copied to clipboard! You can now paste and share it via WhatsApp, SMS, or Email.');
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({
+          files: [file],
+          title: `Invoice ${activeReceipt.invoice_number}`,
+          text: messageText
+        }).catch(err => {
+          console.warn('Share file aborted:', err);
+        });
+      } else {
+        // Fallback for desktops: download PDF directly
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Copy summary to clipboard so they can paste it
+        navigator.clipboard.writeText(messageText);
+        alert('Professional PDF invoice has been downloaded, and billing summary copied to clipboard! You can now send it to your customer.');
+      }
+    } catch (e) {
+      console.error('PDF sharing error:', e);
+      alert('Unable to generate PDF invoice: ' + e.message);
     }
   };
 
