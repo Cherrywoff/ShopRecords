@@ -83,11 +83,19 @@ export default function POS() {
   const handleBarcodeDetected = (barcode) => {
     setShowScanner(false);
     const matchedProduct = products.find(p => p.barcode === barcode);
-    if (matchedProduct) {
+    if (matchedProduct && !matchedProduct.is_unlisted) {
       addToCart(matchedProduct, 1);
     } else {
-      // Trigger Quick Create with pre-filled barcode
-      setQuickCreateBarcode(barcode);
+      // Trigger Quick Create with pre-filled barcode and details if it exists
+      if (matchedProduct && matchedProduct.is_unlisted) {
+        setQuickCreateBarcode(matchedProduct.barcode);
+        setQuickCreateName(matchedProduct.name);
+        setQuickCreatePrice(matchedProduct.selling_price.toString());
+      } else {
+        setQuickCreateBarcode(barcode);
+        setQuickCreateName('');
+        setQuickCreatePrice('');
+      }
       setShowQuickCreate(true);
     }
   };
@@ -97,21 +105,48 @@ export default function POS() {
     e.preventDefault();
     if (!quickCreateName || !quickCreatePrice) return alert('Name and Price are required.');
     
-    const newId = generateUUID();
-    const newProd = {
-      id: newId,
-      name: quickCreateName,
-      barcode: quickCreateBarcode || `QUICK-${Date.now()}`,
-      cost_price: parseFloat(quickCreatePrice) * 0.7, // Assume 30% margin for unlisted
-      selling_price: parseFloat(quickCreatePrice),
-      hsn_code: '',
-      gst_rate: 0,
-      current_stock: 0,
-      low_stock_threshold: 0,
-      is_unlisted: true
-    };
+    // Check if there is an existing product with this barcode or name (including unlisted ones)
+    const existing = products.find(p => 
+      (quickCreateBarcode && p.barcode === quickCreateBarcode) || 
+      p.name.trim().toLowerCase() === quickCreateName.trim().toLowerCase()
+    );
 
-    const savedProd = await saveProduct(newProd);
+    let productRecord;
+    let isNew = true;
+    let prodId = generateUUID();
+
+    if (existing) {
+      isNew = false;
+      prodId = existing.id;
+      // Reconcile details, keeping the existing negative stock!
+      productRecord = {
+        ...existing,
+        name: quickCreateName,
+        barcode: quickCreateBarcode || existing.barcode,
+        cost_price: parseFloat(quickCreatePrice) * 0.7,
+        selling_price: parseFloat(quickCreatePrice),
+        is_unlisted: true, // Remains unlisted in DB until listed in catalog
+        shop_id: currentUser.shop_id,
+        ...getAuditMetadata()
+      };
+    } else {
+      productRecord = {
+        id: prodId,
+        name: quickCreateName,
+        barcode: quickCreateBarcode || `QUICK-${Date.now()}`,
+        cost_price: parseFloat(quickCreatePrice) * 0.7,
+        selling_price: parseFloat(quickCreatePrice),
+        hsn_code: '',
+        gst_rate: 0,
+        current_stock: 0,
+        low_stock_threshold: 0,
+        is_unlisted: true,
+        shop_id: currentUser.shop_id,
+        ...getAuditMetadata()
+      };
+    }
+
+    const savedProd = await saveProduct(productRecord);
     addToCart(savedProd, 1);
     
     setShowQuickCreate(false);
@@ -335,9 +370,28 @@ export default function POS() {
       const fileName = `Invoice_${activeReceipt.invoice_number}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-      // Clean metadata text for quick messaging
-      const messageText = `📄 *Invoice ${activeReceipt.invoice_number}* from ${currentShop?.name || 'ShopRecords Store'}\n` +
-        `Total amount payable: ₹${activeReceipt.total_amount.toFixed(2)} (${activeReceipt.payment_method})\n\n` +
+      // Build detailed text description fallback
+      let itemsListText = '';
+      if (activeReceipt.items && activeReceipt.items.length > 0) {
+        itemsListText = `*Items Billed:*\n`;
+        activeReceipt.items.forEach((item, index) => {
+          const name = item.product_name || (item.product ? item.product.name : 'Unknown Product');
+          const qty = parseFloat(item.quantity || 0);
+          const rate = parseFloat(item.price || item.customPrice || 0);
+          itemsListText += `${index + 1}. ${name} | Qty: ${qty} | ₹${rate.toFixed(2)} | Total: ₹${(rate * qty).toFixed(2)}\n`;
+        });
+        itemsListText += `\n`;
+      }
+
+      const messageText = `🛒 *ShopRecords Invoice - ${currentShop?.name || 'Store'}*\n` +
+        `----------------------------------------\n` +
+        `Invoice: ${activeReceipt.invoice_number}\n` +
+        `Date: ${new Date(activeReceipt.created_at).toLocaleString('en-IN')}\n` +
+        `Payment Mode: ${activeReceipt.payment_method}\n` +
+        `----------------------------------------\n` +
+        itemsListText +
+        `----------------------------------------\n` +
+        `*Net Payable: ₹${activeReceipt.total_amount.toFixed(2)}*\n` +
         `Thank you for shopping with us!`;
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -359,7 +413,6 @@ export default function POS() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         
-        // Copy summary to clipboard so they can paste it
         navigator.clipboard.writeText(messageText);
         alert('Professional PDF invoice has been downloaded, and billing summary copied to clipboard! You can now send it to your customer.');
       }

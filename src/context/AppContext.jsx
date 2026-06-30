@@ -656,9 +656,31 @@ export const AppProvider = ({ children }) => {
     await loadDataFromIndexedDB();
   };
 
+  const deleteCustomer = async (customerId) => {
+    if (!isSubscriptionActive()) return alert('Subscription expired! Write operations locked.');
+    await dbOps.delete(STORES.CUSTOMERS, customerId);
+    await queueSyncAction(STORES.CUSTOMERS, customerId, 'DELETE');
+    await loadDataFromIndexedDB();
+  };
+
   // 2. CUSTOMERS
   const saveCustomer = async (customer) => {
     if (!isSubscriptionActive()) return alert('Subscription expired!');
+
+    // Unique phone number constraint
+    if (customer.phone && customer.phone.trim() !== '') {
+      const allCustomers = await dbOps.getAll(STORES.CUSTOMERS);
+      const isDuplicatePhone = allCustomers.some(c => 
+        c.id !== customer.id && 
+        c.phone && c.phone.trim() === customer.phone.trim() &&
+        (!c.shop_id || c.shop_id === currentUser.shop_id)
+      );
+      if (isDuplicatePhone) {
+        alert(`Error: A customer with mobile number "${customer.phone}" already exists. Each customer must have a unique mobile number.`);
+        throw new Error('Duplicate customer phone number');
+      }
+    }
+
     const isNew = !customer.id;
     const custId = customer.id || generateUUID();
     const custRecord = {
@@ -1159,6 +1181,7 @@ export const AppProvider = ({ children }) => {
         saveProduct,
         deleteProduct,
         saveCustomer,
+        deleteCustomer,
         logCustomerPayment,
         saveExpense,
         saveSupplier,
