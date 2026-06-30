@@ -48,7 +48,17 @@ export default function Dashboard({ setCurrentTab }) {
   const todaySalesTotal = todaySales.reduce((acc, curr) => acc + parseFloat(curr.total_amount), 0);
 
   const salesByMethod = todaySales.reduce((acc, curr) => {
-    acc[curr.payment_method] = (acc[curr.payment_method] || 0) + parseFloat(curr.total_amount);
+    if (curr.payment_method === 'Split' && curr.payment_details) {
+      acc.Cash += parseFloat(curr.payment_details.Cash || curr.payment_details.cash || 0);
+      acc.UPI += parseFloat(curr.payment_details.UPI || curr.payment_details.upi || 0);
+      acc.Card += parseFloat(curr.payment_details.Card || curr.payment_details.card || 0);
+      acc.Udhar += parseFloat(curr.payment_details.Udhar || curr.payment_details.udhar || 0);
+    } else {
+      const method = curr.payment_method;
+      if (acc[method] !== undefined) {
+        acc[method] += parseFloat(curr.total_amount || 0);
+      }
+    }
     return acc;
   }, { Cash: 0, UPI: 0, Card: 0, Udhar: 0 });
 
