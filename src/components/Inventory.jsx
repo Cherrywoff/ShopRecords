@@ -213,9 +213,11 @@ export default function Inventory() {
               if (hsnIdx !== -1) existing.hsn_code = excelHsnCode;
               if (gstIdx !== -1) existing.gst_rate = excelGstRate;
               if (lowIdx !== -1) existing.low_stock_threshold = excelLowThreshold;
+              if (existing.is_unlisted) existing.is_unlisted = false;
 
               const productRecord = {
                 ...existing,
+                is_unlisted: false,
                 performed_by_user_id: currentUser.id,
                 performed_by_name: currentUser.name,
                 performed_by_role: currentUser.role,

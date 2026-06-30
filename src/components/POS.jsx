@@ -111,8 +111,8 @@ export default function POS() {
       is_unlisted: true
     };
 
-    await saveProduct(newProd);
-    addToCart(newProd, 1);
+    const savedProd = await saveProduct(newProd);
+    addToCart(savedProd, 1);
     
     setShowQuickCreate(false);
     setQuickCreateName('');

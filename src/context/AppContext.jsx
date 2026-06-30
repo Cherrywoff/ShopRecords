@@ -646,6 +646,7 @@ export const AppProvider = ({ children }) => {
     await dbOps.put(STORES.PRODUCTS, productRecord);
     await queueSyncAction(STORES.PRODUCTS, prodId, isNew ? 'INSERT' : 'UPDATE', productRecord);
     await loadDataFromIndexedDB();
+    return productRecord;
   };
 
   const deleteProduct = async (productId) => {
