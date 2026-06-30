@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shoprecords-cache-v1';
+const CACHE_NAME = 'shoprecords-cache-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -30,13 +30,11 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // Only handle local origin requests (ignore API, sync, and Supabase)
   if (e.request.url.startsWith(self.location.origin)) {
     e.respondWith(
-      caches.match(e.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(e.request).then((response) => {
+      fetch(e.request)
+        .then((response) => {
           if (response && response.status === 200 && response.type === 'basic') {
             const responseCopy = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -44,10 +42,11 @@ self.addEventListener('fetch', (e) => {
             });
           }
           return response;
-        }).catch(() => {
-          // Offline fallback
-        });
-      })
+        })
+        .catch(() => {
+          // If offline, serve from cache fallback
+          return caches.match(e.request);
+        })
     );
   }
 });
